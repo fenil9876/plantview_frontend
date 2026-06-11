@@ -1,0 +1,19 @@
+node_modules
+dist
+dist-ssr
+.git
+.gitignore
+# Keep local env out of the image; the API URL is passed as a build arg.
+.env
+.env.local
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+.vscode
+.idea
+.DS_Store
