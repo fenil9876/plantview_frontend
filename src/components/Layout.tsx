@@ -12,7 +12,6 @@ import {
   PackageSearch,
   Users,
   Warehouse,
-  X,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { cn } from "./ui";
@@ -144,13 +143,6 @@ export function Layout() {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-bold text-slate-900">PlantView</span>
-          <button
-            onClick={handleLogout}
-            className="ml-auto rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-            aria-label="Log out"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
