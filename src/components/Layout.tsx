@@ -60,7 +60,7 @@ export function Layout() {
         <span className="text-lg font-extrabold tracking-tight text-slate-900">PlantView</span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -117,8 +117,8 @@ export function Layout() {
 
   return (
     <div className="flex min-h-full">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 flex-shrink-0 border-r border-slate-200 bg-white lg:block">
+      {/* Desktop sidebar — sticky full-height so the account block stays put */}
+      <aside className="hidden w-64 flex-shrink-0 border-r border-slate-200 bg-white lg:block lg:sticky lg:top-0 lg:h-screen lg:self-start">
         {sidebar}
       </aside>
 
