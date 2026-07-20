@@ -14,6 +14,8 @@ import type {
 export async function listBatches(params?: {
   template_id?: number;
   status?: BatchStatus;
+  /** Case-insensitive substring match on the batch code. */
+  search?: string;
 }): Promise<BatchSummary[]> {
   return (await api.get<BatchSummary[]>("/batches", { params })).data;
 }
@@ -45,6 +47,11 @@ export async function setBatchMaterials(
   return (await api.put<BatchRead>(`/batches/${id}/materials`, { materials })).data;
 }
 
+/** Designs this lot may use. Empty list clears the restriction (all designs selectable). */
+export async function setBatchDesigns(id: number, designIds: number[]): Promise<BatchRead> {
+  return (await api.put<BatchRead>(`/batches/${id}/designs`, { design_ids: designIds })).data;
+}
+
 export async function setBatchColorTargets(
   id: number,
   targets: BatchColorTargetSubmit[],
@@ -58,6 +65,16 @@ export async function createStageEntry(
   payload: StageEntrySubmit,
 ): Promise<StageEntry> {
   return (await api.post<StageEntry>(`/batches/${batchId}/stages/${stageId}/entries`, payload)).data;
+}
+
+export async function createStageEntriesBulk(
+  batchId: number,
+  stageId: number,
+  entries: StageEntrySubmit[],
+): Promise<StageEntry[]> {
+  return (
+    await api.post<StageEntry[]>(`/batches/${batchId}/stages/${stageId}/entries/bulk`, { entries })
+  ).data;
 }
 
 export async function updateStageEntry(

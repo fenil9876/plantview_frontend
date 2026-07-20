@@ -52,7 +52,11 @@ interface Props {
   submitting: boolean;
   /** Restrict the color picker to the lot's color split. Empty = no restriction (all colors). */
   allowedColorIds?: number[];
-  onSubmit: (payload: StageEntrySubmit) => void;
+  /** Restrict the design picker to the lot's designs. Empty = no restriction (all designs). */
+  allowedDesignIds?: number[];
+  /** Show a "Save & add another" button that keeps the form open after saving. */
+  allowAddAnother?: boolean;
+  onSubmit: (payload: StageEntrySubmit, addAnother?: boolean) => void;
   onCancel?: () => void;
 }
 
@@ -64,6 +68,8 @@ export function StageEntryForm({
   canEdit,
   submitting,
   allowedColorIds,
+  allowedDesignIds,
+  allowAddAnother,
   onSubmit,
   onCancel,
 }: Props) {
@@ -85,6 +91,15 @@ export function StageEntryForm({
       allowedColorIds.length === 0 ||
       allowedColorIds.includes(cl.id) ||
       cl.id === existing?.color_id,
+  );
+
+  // Same rule for designs: a lot with no designs attached offers all of them.
+  const visibleDesigns = (designs ?? []).filter(
+    (d) =>
+      !allowedDesignIds ||
+      allowedDesignIds.length === 0 ||
+      allowedDesignIds.includes(d.id) ||
+      d.id === existing?.design_id,
   );
 
   const [designId, setDesignId] = useState<number | "">(existing?.design_id ?? "");
@@ -137,7 +152,7 @@ export function StageEntryForm({
   const removeMachine = (mid: number) => setMachineMeta(mid, "quantity", "");
   const isUsed = (mid: number) => (machineVals[mid]?.quantity ?? "").trim() !== "";
 
-  const submit = () => {
+  const submit = (addAnother = false) => {
     const machinesPayload = assigned
       .map((m) => {
         const mv = machineVals[m.id];
@@ -168,12 +183,15 @@ export function StageEntryForm({
     }
     setLocalError(null);
 
-    onSubmit({
-      data: buildRecord(stageFields, stageVals),
-      machines: machinesPayload,
-      design_id: designId === "" ? null : designId,
-      color_id: colorId === "" ? null : colorId,
-    });
+    onSubmit(
+      {
+        data: buildRecord(stageFields, stageVals),
+        machines: machinesPayload,
+        design_id: designId === "" ? null : designId,
+        color_id: colorId === "" ? null : colorId,
+      },
+      addAnother,
+    );
   };
 
   return (
@@ -191,7 +209,7 @@ export function StageEntryForm({
             onChange={(e) => setDesignId(e.target.value ? Number(e.target.value) : "")}
           >
             <option value="">— none —</option>
-            {designs?.map((d) => (
+            {visibleDesigns.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
               </option>
@@ -394,10 +412,20 @@ export function StageEntryForm({
       )}
 
       {canEdit && (
-        <div className="flex gap-2">
-          <Button onClick={submit} disabled={submitting}>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => submit(false)} disabled={submitting}>
             {submitting ? "Saving…" : existing ? "Save changes" : "Save"}
           </Button>
+          {allowAddAnother && !existing && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => submit(true)}
+              disabled={submitting}
+            >
+              Save & add another
+            </Button>
+          )}
           {onCancel && (
             <Button type="button" variant="secondary" onClick={onCancel}>
               Cancel

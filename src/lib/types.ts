@@ -176,10 +176,18 @@ export interface BatchColorTarget {
   quantity: number;
 }
 
+/** A design made available to a lot. No quantity — it only narrows the entry picker. */
+export interface BatchDesign {
+  design_id: number;
+  name: string;
+  description: string | null;
+}
+
 export interface BatchRead extends BatchSummary {
   stage_entries: StageEntry[];
   materials: BatchMaterial[];
   color_targets: BatchColorTarget[];
+  designs: BatchDesign[];
 }
 
 export interface BatchMaterialSubmit {
@@ -218,10 +226,16 @@ export interface StageEntrySubmit {
   status?: EntryStatus;
 }
 
+export interface StageEntriesBulkCreate {
+  entries: StageEntrySubmit[];
+}
+
 export interface ValidationFieldError {
   scope: string;
   field: string;
   error: string;
+  /** Present on bulk (multi-colour) submits: which entry in the list failed. */
+  index?: number;
 }
 
 export interface Overview {

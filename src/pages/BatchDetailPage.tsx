@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Pencil, Plus, Trash2 } from "lucide-react";
+import { BarChart3, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -14,10 +14,12 @@ import {
 } from "recharts";
 import { apiErrorMessage, apiValidationErrors } from "../lib/api";
 import {
+  createStageEntriesBulk,
   createStageEntry,
   deleteStageEntry,
   getBatch,
   setBatchColorTargets,
+  setBatchDesigns,
   setBatchMaterials,
   updateBatch,
   updateBatchStatus,
@@ -26,7 +28,7 @@ import {
 import { getTemplate } from "../lib/templatesApi";
 import { listMachines } from "../lib/machinesApi";
 import { listInventory } from "../lib/inventoryApi";
-import { listColors } from "../lib/designApi";
+import { listColors, listDesigns } from "../lib/designApi";
 import { useAuth } from "../auth/AuthContext";
 import {
   Badge,
@@ -45,8 +47,10 @@ import {
   type Column,
 } from "../components/ui";
 import { StageEntryForm } from "../components/StageEntryForm";
+import { MultiColorEntryForm } from "../components/MultiColorEntryForm";
 import type {
   BatchColorTarget,
+  BatchDesign,
   BatchMaterial,
   BatchRead,
   BatchStatus,
@@ -138,7 +142,7 @@ export function BatchDetailPage() {
   const { data: machines } = useQuery({ queryKey: ["machines"], queryFn: listMachines });
 
   const [statsOpen, setStatsOpen] = useState(false);
-  const [setup, setSetup] = useState<null | "lot" | "colors" | "materials">(null);
+  const [setup, setSetup] = useState<null | "lot" | "designs" | "colors" | "materials">(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["batch", batchId] });
 
@@ -203,12 +207,22 @@ export function BatchDetailPage() {
       />
 
       <Card className="py-3">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <SetupTile
             label="Lot size"
             value={batch.lot_size != null ? String(batch.lot_size) : "Not set"}
             muted={batch.lot_size == null}
             onClick={() => setSetup("lot")}
+          />
+          <SetupTile
+            label="Designs"
+            value={
+              batch.designs.length
+                ? `${batch.designs.length} design${batch.designs.length === 1 ? "" : "s"}`
+                : "All"
+            }
+            muted={batch.designs.length === 0}
+            onClick={() => setSetup("designs")}
           />
           <SetupTile
             label="Color split"
@@ -242,6 +256,22 @@ export function BatchDetailPage() {
         <LotSizeBody
           batchId={batchId}
           lotSize={batch.lot_size}
+          canEnter={canEnter}
+          onClose={() => setSetup(null)}
+          onChanged={refresh}
+        />
+      </Modal>
+
+      <Modal
+        open={setup === "designs"}
+        onClose={() => setSetup(null)}
+        title="Designs"
+        description="Pick the designs this lot runs, to narrow the design list during entry. Leave every box unticked to offer all designs."
+        size="lg"
+      >
+        <DesignsBody
+          batchId={batchId}
+          selected={batch.designs}
           canEnter={canEnter}
           onClose={() => setSetup(null)}
           onChanged={refresh}
@@ -296,7 +326,8 @@ export function BatchDetailPage() {
           machines={machines ?? []}
           entries={batch.stage_entries.filter((e) => e.stage_id === stage.id)}
           lotSize={batch.lot_size}
-          colorTargetIds={batch.color_targets.map((t) => t.color_id)}
+          colorTargets={batch.color_targets}
+          lotDesigns={batch.designs}
           isCurrent={batch.current_stage_id === stage.id}
           canEnter={canEnter}
           isAdmin={isAdmin}
@@ -670,6 +701,188 @@ function MaterialsBody({
   );
 }
 
+/**
+ * Designs available to this lot. Unlike the colour split there is no quantity —
+ * it purely narrows the design picker during entry. Ticking nothing means
+ * "no restriction", so every design stays selectable.
+ */
+function DesignsBody({
+  batchId,
+  selected,
+  canEnter,
+  onClose,
+  onChanged,
+}: {
+  batchId: number;
+  selected: BatchDesign[];
+  canEnter: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const { data: designs } = useQuery({ queryKey: ["designs"], queryFn: listDesigns });
+
+  const [picked, setPicked] = useState<number[]>(() => selected.map((d) => d.design_id));
+  const toggle = (id: number) =>
+    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  // Client-side filter — the full design list is already loaded, so this is instant.
+  const [query, setQuery] = useState("");
+  const [selectedOnly, setSelectedOnly] = useState(false);
+  const all = designs ?? [];
+  const q = query.trim().toLowerCase();
+  const visible = all.filter(
+    (d) =>
+      (!selectedOnly || picked.includes(d.id)) &&
+      (!q ||
+        d.name.toLowerCase().includes(q) ||
+        (d.description ?? "").toLowerCase().includes(q)),
+  );
+  // Ticking something and then searching past it shouldn't feel like it was lost.
+  const hiddenPicked = picked.filter((id) => !visible.some((d) => d.id === id)).length;
+
+  const saveMut = useMutation({
+    mutationFn: () => setBatchDesigns(batchId, picked),
+    onSuccess: () => {
+      toast.success(picked.length ? "Lot designs saved" : "Design restriction cleared");
+      onChanged();
+      onClose();
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  // Read-only view for viewers.
+  if (!canEnter) {
+    return selected.length === 0 ? (
+      <p className="text-sm text-slate-400">No designs attached — all designs are available.</p>
+    ) : (
+      <ul className="space-y-1 text-sm text-slate-700">
+        {selected.map((d) => (
+          <li key={d.design_id}>{d.name}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {all.length === 0 ? (
+        <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
+          No designs defined. Add designs on the Design page first.
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search designs…"
+                aria-label="Search designs"
+                className="pl-9 pr-9"
+                autoFocus
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {picked.length > 0 && (
+              <Button
+                variant={selectedOnly ? "primary" : "secondary"}
+                onClick={() => setSelectedOnly((v) => !v)}
+              >
+                Selected ({picked.length})
+              </Button>
+            )}
+          </div>
+
+          {visible.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
+              {q ? `No designs match “${query}”.` : "Nothing selected yet."}
+            </p>
+          ) : (
+            <div className="grid max-h-[45vh] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {visible.map((d) => (
+                <label
+                  key={d.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                    picked.includes(d.id)
+                      ? "border-brand bg-brand-50"
+                      : "border-slate-200 hover:bg-slate-50",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(d.id)}
+                    onChange={() => toggle(d.id)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand/30"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-slate-800">{d.name}</span>
+                    {d.description && (
+                      <span className="block truncate text-xs text-slate-400">{d.description}</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {(q || selectedOnly) && (
+            <p className="text-xs text-slate-400">
+              Showing {visible.length} of {all.length} designs
+              {hiddenPicked > 0 && ` · ${hiddenPicked} selected hidden by this filter`}
+            </p>
+          )}
+        </>
+      )}
+
+      <p className="text-sm text-slate-500">
+        {picked.length === 0 ? (
+          <>
+            Nothing selected — operators can pick <strong className="text-slate-700">any design</strong>.
+          </>
+        ) : (
+          <>
+            Operators will only see these{" "}
+            <strong className="text-slate-700">{picked.length}</strong> design
+            {picked.length === 1 ? "" : "s"}.
+          </>
+        )}
+      </p>
+
+      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+        {picked.length > 0 && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setPicked([]);
+              setSelectedOnly(false); // otherwise the list would filter down to nothing
+            }}
+          >
+            Clear all
+          </Button>
+        )}
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
+          Save designs
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ColorSplitBody({
   batchId,
   lotSize,
@@ -910,7 +1123,8 @@ function StageCard({
   machines,
   entries,
   lotSize,
-  colorTargetIds,
+  colorTargets,
+  lotDesigns,
   isCurrent,
   canEnter,
   isAdmin,
@@ -922,7 +1136,8 @@ function StageCard({
   machines: Machine[];
   entries: StageEntry[];
   lotSize: number | null;
-  colorTargetIds: number[];
+  colorTargets: BatchColorTarget[];
+  lotDesigns: BatchDesign[];
   isCurrent: boolean;
   canEnter: boolean;
   isAdmin: boolean;
@@ -932,6 +1147,7 @@ function StageCard({
   const toast = useToast();
   const [listOpen, setListOpen] = useState(false);
   const [form, setForm] = useState<"add" | number | null>(null);
+  const [gridOpen, setGridOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [errors, setErrors] = useState<ValidationFieldError[]>([]);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
@@ -941,6 +1157,22 @@ function StageCard({
   const canEditEntry = (e: StageEntry) => isAdmin || e.submitted_by === currentUserId;
   const machineName = (mid: number) => machines.find((m) => m.id === mid)?.name ?? `#${mid}`;
 
+  const colorTargetIds = colorTargets.map((t) => t.color_id);
+  const lotDesignIds = lotDesigns.map((d) => d.design_id);
+  // The fast multi-colour grid fits simple machine stages (machines, no custom
+  // per-machine input/output fields). Everything else uses the single-entry form.
+  const hasRichMachineFields = stage.field_defs.some(
+    (f) => f.scope === "machine_input" || f.scope === "machine_output",
+  );
+  const useGrid = stage.has_machines && !hasRichMachineFields;
+
+  const doneByColorId: Record<number, number> = {};
+  perColorAtStage(stage, entries).forEach((v, cid) => {
+    if (cid != null) doneByColorId[cid] = v;
+  });
+  const lastDesignId =
+    [...entries].reverse().find((e) => e.design_id != null)?.design_id ?? null;
+
   const handleErr = (e: unknown) => {
     const v = apiValidationErrors(e);
     if (v) setErrors(v);
@@ -948,11 +1180,13 @@ function StageCard({
   };
 
   const createMut = useMutation({
-    mutationFn: (payload: StageEntrySubmit) => createStageEntry(batchId, stage.id, payload),
-    onSuccess: () => {
+    mutationFn: (v: { payload: StageEntrySubmit; addAnother?: boolean }) =>
+      createStageEntry(batchId, stage.id, v.payload),
+    onSuccess: (_created, v) => {
       setErrors([]);
-      setForm(null);
       setFormKey((k) => k + 1);
+      // "Save & add another" keeps the form open with a fresh (reset) form.
+      if (!v.addAnother) setForm(null);
       toast.success("Entry added");
       onChanged();
     },
@@ -966,6 +1200,18 @@ function StageCard({
       setErrors([]);
       setForm(null);
       toast.success("Entry updated");
+      onChanged();
+    },
+    onError: handleErr,
+  });
+
+  const bulkMut = useMutation({
+    mutationFn: (payloads: StageEntrySubmit[]) => createStageEntriesBulk(batchId, stage.id, payloads),
+    onSuccess: (created) => {
+      setErrors([]);
+      setGridOpen(false);
+      setFormKey((k) => k + 1);
+      toast.success(`${created.length} ${created.length === 1 ? "entry" : "entries"} added`);
       onChanged();
     },
     onError: handleErr,
@@ -987,7 +1233,12 @@ function StageCard({
 
   const openAdd = () => {
     setErrors([]);
-    setForm("add");
+    if (useGrid) {
+      setFormKey((k) => k + 1);
+      setGridOpen(true);
+    } else {
+      setForm("add");
+    }
   };
   const openEdit = (entryId: number) => {
     setErrors([]);
@@ -996,6 +1247,10 @@ function StageCard({
   };
   const closeForm = () => {
     setForm(null);
+    setErrors([]);
+  };
+  const closeGrid = () => {
+    setGridOpen(false);
     setErrors([]);
   };
 
@@ -1103,6 +1358,28 @@ function StageCard({
       />
 
       <Modal
+        open={gridOpen}
+        onClose={closeGrid}
+        title={`New entries — ${stage.name}`}
+        description="Enter a quantity for each colour. One save records them all."
+        size="md"
+      >
+        <MultiColorEntryForm
+          key={formKey}
+          stage={stage}
+          machines={machines}
+          colorTargets={colorTargets}
+          doneByColorId={doneByColorId}
+          lastDesignId={lastDesignId}
+          allowedDesignIds={lotDesignIds}
+          errors={errors}
+          submitting={bulkMut.isPending}
+          onSubmit={(payloads) => bulkMut.mutate(payloads)}
+          onCancel={closeGrid}
+        />
+      </Modal>
+
+      <Modal
         open={form !== null}
         onClose={closeForm}
         title={editing ? `Edit entry — ${stage.name}` : `New entry — ${stage.name}`}
@@ -1117,6 +1394,7 @@ function StageCard({
             canEdit
             submitting={updateMut.isPending}
             allowedColorIds={colorTargetIds}
+            allowedDesignIds={lotDesignIds}
             onSubmit={(payload) => updateMut.mutate({ entryId: editing.id, payload })}
             onCancel={closeForm}
           />
@@ -1129,7 +1407,9 @@ function StageCard({
             canEdit
             submitting={createMut.isPending}
             allowedColorIds={colorTargetIds}
-            onSubmit={(payload) => createMut.mutate(payload)}
+            allowedDesignIds={lotDesignIds}
+            allowAddAnother
+            onSubmit={(payload, addAnother) => createMut.mutate({ payload, addAnother })}
             onCancel={closeForm}
           />
         )}
