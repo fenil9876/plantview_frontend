@@ -148,6 +148,7 @@ export interface StageEntry {
   submitted_by: number | null;
   submitted_by_name: string | null;
   machine_entries: MachineEntry[];
+  created_at: string;
   updated_at: string;
 }
 
@@ -169,6 +170,7 @@ export interface BatchMaterial {
   quantity: number;
 }
 
+/** Lot-wide total per colour, rolled up across designs by the server. Read-only. */
 export interface BatchColorTarget {
   color_id: number;
   name: string;
@@ -176,11 +178,20 @@ export interface BatchColorTarget {
   quantity: number;
 }
 
-/** A design made available to a lot. No quantity — it only narrows the entry picker. */
+/** A colour one of the lot's designs runs in. `quantity` null = no planned target. */
+export interface BatchDesignColor {
+  color_id: number;
+  name: string;
+  hex: string | null;
+  quantity: number | null;
+}
+
+/** A design this lot runs, with the colours it runs in. */
 export interface BatchDesign {
   design_id: number;
   name: string;
   description: string | null;
+  colors: BatchDesignColor[];
 }
 
 export interface BatchRead extends BatchSummary {
@@ -195,9 +206,14 @@ export interface BatchMaterialSubmit {
   quantity: number;
 }
 
-export interface BatchColorTargetSubmit {
+export interface BatchDesignColorSubmit {
   color_id: number;
-  quantity: number;
+  quantity: number | null;
+}
+
+export interface BatchDesignSubmit {
+  design_id: number;
+  colors: BatchDesignColorSubmit[];
 }
 
 export interface BatchCreate {

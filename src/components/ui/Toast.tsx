@@ -54,20 +54,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-full max-w-sm flex-col gap-2">
+      {/* Bottom centre: on a phone this sits within thumb reach and never covers
+          the header or the top of a form. pb clears the iOS home indicator. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-4 py-3 shadow-pop animate-slide-in",
+              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-4 py-3 shadow-pop animate-slide-up",
               STYLE[t.kind].ring,
             )}
           >
-            {STYLE[t.kind].icon}
-            <p className="flex-1 text-sm text-slate-700">{t.message}</p>
+            <span className="shrink-0">{STYLE[t.kind].icon}</span>
+            <p className="flex-1 break-words text-sm text-slate-700">{t.message}</p>
             <button
               onClick={() => remove(t.id)}
-              className="text-slate-300 hover:text-slate-500"
+              className="-m-2 shrink-0 p-2 text-slate-300 hover:text-slate-500"
               aria-label="Dismiss"
             >
               <X className="h-4 w-4" />

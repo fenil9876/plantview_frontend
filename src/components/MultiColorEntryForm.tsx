@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import type {
-  BatchColorTarget,
+  BatchDesign,
   FieldDef,
   Machine,
   MachineEntrySubmit,
@@ -18,6 +18,9 @@ type ValMap = Record<string, FieldValue>;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Above this many designs the chips stop being tappable and become a dropdown. */
+const CHIP_LIMIT = 8;
+
 /** Drop empties; keep booleans as-is. Mirrors StageEntryForm.buildRecord. */
 function buildRecord(fields: FieldDef[], vals: ValMap): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -29,6 +32,10 @@ function buildRecord(fields: FieldDef[], vals: ValMap): Record<string, unknown> 
   return out;
 }
 
+interface Option {
+  id: number;
+  name: string;
+}
 interface ColorRow {
   id: number;
   name: string;
@@ -39,14 +46,12 @@ interface ColorRow {
 interface Props {
   stage: Stage;
   machines: Machine[];
-  /** The lot's colour split; drives the rows. Empty ⇒ fall back to all colours. */
-  colorTargets: BatchColorTarget[];
+  /** The lot's designs with the colours under each. Empty ⇒ no restriction. */
+  lotDesigns: BatchDesign[];
   /** Quantity already recorded at this stage per colour id, for the "left" hint. */
   doneByColorId: Record<number, number>;
   /** Design used on the most recent entry of this stage — the sticky default. */
   lastDesignId: number | null;
-  /** The lot's designs. Empty ⇒ no restriction (all designs selectable). */
-  allowedDesignIds?: number[];
   errors: ValidationFieldError[];
   submitting: boolean;
   onSubmit: (entries: StageEntrySubmit[]) => void;
@@ -54,18 +59,18 @@ interface Props {
 }
 
 /**
- * Fast data entry for simple machine stages. The operator first taps the machines
- * they ran, then types a quantity per machine on each colour. One save creates one
- * entry per colour (grouping that colour's machines). Design defaults to the last
- * one picked and carries to still-untouched rows.
+ * Fast data entry for simple machine stages. The operator picks the machines they
+ * ran and the design they ran, then types a quantity per machine against each of
+ * that design's colours. One save creates one entry per colour, each grouping that
+ * colour's machines. A single save covers one design — that is what keeps the
+ * colour list unambiguous.
  */
 export function MultiColorEntryForm({
   stage,
   machines,
-  colorTargets,
+  lotDesigns,
   doneByColorId,
   lastDesignId,
-  allowedDesignIds,
   errors,
   submitting,
   onSubmit,
@@ -76,25 +81,45 @@ export function MultiColorEntryForm({
     .map((id) => machines.find((m) => m.id === id))
     .filter((m): m is Machine => !!m);
 
-  const { data: designs } = useQuery({ queryKey: ["designs"], queryFn: listDesigns });
+  const restricted = lotDesigns.length > 0;
+  // Only fetch the full lists when the lot hasn't narrowed things down for us.
+  const { data: allDesigns } = useQuery({
+    queryKey: ["designs"],
+    queryFn: listDesigns,
+    enabled: !restricted,
+  });
   const { data: allColors } = useQuery({ queryKey: ["colors"], queryFn: listColors });
 
-  // Mirrors the colour rule: a lot with no designs attached offers all of them.
-  const visibleDesigns = (designs ?? []).filter(
-    (d) => !allowedDesignIds || allowedDesignIds.length === 0 || allowedDesignIds.includes(d.id),
+  const designOptions: Option[] = useMemo(
+    () =>
+      restricted
+        ? lotDesigns.map((d) => ({ id: d.design_id, name: d.name }))
+        : (allDesigns ?? []).map((d) => ({ id: d.id, name: d.name })),
+    [restricted, lotDesigns, allDesigns],
   );
 
+  // Stick to the design used last, so a repeat entry is one tap. With a single
+  // option there is nothing to choose — pick it outright.
+  const [designId, setDesignId] = useState<number | "">(() => {
+    if (lastDesignId != null && designOptions.some((d) => d.id === lastDesignId)) return lastDesignId;
+    return designOptions.length === 1 ? designOptions[0].id : "";
+  });
+
+  // Colours follow the chosen design; an unrestricted lot offers all of them.
   const rows: ColorRow[] = useMemo(() => {
-    if (colorTargets.length > 0) {
-      return colorTargets.map((t) => ({
-        id: t.color_id,
-        name: t.name,
-        hex: t.hex,
-        planned: t.quantity,
+    if (restricted) {
+      if (designId === "") return [];
+      const lot = lotDesigns.find((d) => d.design_id === designId);
+      if (!lot) return [];
+      return lot.colors.map((c) => ({
+        id: c.color_id,
+        name: c.name,
+        hex: c.hex,
+        planned: c.quantity,
       }));
     }
     return (allColors ?? []).map((c) => ({ id: c.id, name: c.name, hex: c.hex, planned: null }));
-  }, [colorTargets, allColors]);
+  }, [restricted, lotDesigns, designId, allColors]);
 
   // With just one or two machines there's nothing to gain from hiding any, so
   // pre-select them all; otherwise start empty and let the operator tap.
@@ -104,8 +129,6 @@ export function MultiColorEntryForm({
   // qty[colourId][machineId] = raw string
   const [qty, setQty] = useState<Record<number, Record<number, string>>>({});
   const [stageVals, setStageVals] = useState<ValMap>({});
-  const [rowDesign, setRowDesign] = useState<Record<number, number | "">>({});
-  const [lastDesign, setLastDesign] = useState<number | "">(lastDesignId ?? "");
   const [localError, setLocalError] = useState<string | null>(null);
   const submittedOrder = useRef<number[]>([]);
 
@@ -115,11 +138,12 @@ export function MultiColorEntryForm({
   const toggleMachine = (mid: number) =>
     setSelectedIds((prev) => (prev.includes(mid) ? prev.filter((x) => x !== mid) : [...prev, mid]));
 
-  // A row shows its own design once touched, otherwise the sticky last-picked one.
-  const designFor = (cid: number): number | "" => (cid in rowDesign ? rowDesign[cid] : lastDesign);
-  const setDesign = (cid: number, val: number | "") => {
-    setRowDesign((prev) => ({ ...prev, [cid]: val }));
-    setLastDesign(val); // carry to still-untouched rows
+  // Switching design swaps the whole colour list, so anything already typed
+  // belongs to the old design and would be silently mis-filed. Start clean.
+  const chooseDesign = (val: number | "") => {
+    setDesignId(val);
+    setQty({});
+    setLocalError(null);
   };
 
   const cell = (cid: number, mid: number): string => qty[cid]?.[mid] ?? "";
@@ -166,30 +190,24 @@ export function MultiColorEntryForm({
       setLocalError("Tap the machine(s) you ran first.");
       return;
     }
+    if (requireDesign && designId === "") {
+      setLocalError("Choose the design you ran.");
+      return;
+    }
     if (filledRows.length === 0) {
       setLocalError("Enter a quantity for at least one machine.");
       return;
-    }
-    if (requireDesign) {
-      const missing = filledRows.filter((r) => designFor(r.id) === "");
-      if (missing.length) {
-        setLocalError(`Please choose a design for: ${missing.map((r) => r.name).join(", ")}.`);
-        return;
-      }
     }
     setLocalError(null);
 
     const data = buildRecord(stageFields, stageVals);
     submittedOrder.current = filledRows.map((r) => r.id);
-    const entries: StageEntrySubmit[] = filledRows.map((r) => {
-      const d = designFor(r.id);
-      return {
-        data,
-        machines: machinesForColor(r.id),
-        design_id: d === "" ? null : d,
-        color_id: r.id,
-      };
-    });
+    const entries: StageEntrySubmit[] = filledRows.map((r) => ({
+      data,
+      machines: machinesForColor(r.id),
+      design_id: designId === "" ? null : designId,
+      color_id: r.id,
+    }));
     onSubmit(entries);
   };
 
@@ -229,6 +247,54 @@ export function MultiColorEntryForm({
         </Field>
       )}
 
+      <Field
+        label="Design you ran"
+        required={requireDesign}
+        hint="One design per save — the colours below are the ones it runs in."
+      >
+        {designOptions.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            No designs available. Add designs to this lot under “Designs &amp; colors”.
+          </p>
+        ) : designOptions.length > CHIP_LIMIT ? (
+          <Select
+            value={designId}
+            className="h-11 text-base"
+            onChange={(e) => chooseDesign(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">— choose a design —</option>
+            {designOptions.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {designOptions.map((d) => {
+              const on = designId === d.id;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => chooseDesign(on ? "" : d.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors",
+                    on
+                      ? "border-brand bg-brand-50 text-brand"
+                      : "border-slate-300 bg-white text-slate-600 hover:border-brand hover:bg-brand-50",
+                  )}
+                >
+                  {on && <Check className="h-4 w-4" />}
+                  {d.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Field>
+
       {stageFields.length > 0 && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {stageFields.map((f) => (
@@ -246,9 +312,15 @@ export function MultiColorEntryForm({
         <div className="mb-2 text-sm font-medium text-slate-700">
           Enter each machine's quantity per colour
         </div>
-        {rows.length === 0 ? (
+        {restricted && designId === "" ? (
+          <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-400">
+            Choose a design above to see its colours.
+          </p>
+        ) : rows.length === 0 ? (
           <p className="text-sm text-slate-400">
-            No colours available. Add colours on the Design page, or set a colour split for this lot.
+            {restricted
+              ? "This design has no colours in this lot. Add them under “Designs & colors”."
+              : "No colours available. Add colours on the Design page."}
           </p>
         ) : (
           <div className="space-y-2.5">
@@ -258,8 +330,8 @@ export function MultiColorEntryForm({
               const errs = rowErrors.get(r.id);
               return (
                 <div key={r.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 font-medium text-slate-800">
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                    <span className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
                       <span
                         className="inline-block h-4 w-4 shrink-0 rounded-full border border-slate-300"
                         style={{ background: r.hex ?? "transparent" }}
@@ -279,22 +351,6 @@ export function MultiColorEntryForm({
                         )}
                       </span>
                     )}
-                  </div>
-
-                  <div className="mt-2.5">
-                    <Field label="Design" required={requireDesign} className="max-w-xs">
-                      <Select
-                        value={designFor(r.id)}
-                        onChange={(e) => setDesign(r.id, e.target.value ? Number(e.target.value) : "")}
-                      >
-                        <option value="">— none —</option>
-                        {visibleDesigns.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
                   </div>
 
                   {stage.has_machines &&

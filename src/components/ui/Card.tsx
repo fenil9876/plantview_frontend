@@ -17,11 +17,11 @@ export function Card({ children, title, subtitle, actions, className, bodyClassN
     <div className={cn("rounded-xl border border-slate-200 bg-white shadow-card", className)}>
       {hasHeader && (
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div>
+          <div className="min-w-0">
             {title && <h2 className="text-sm font-semibold text-slate-800">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
       )}
       <div className={cn(!noPadding && "p-5", bodyClassName)}>{children}</div>

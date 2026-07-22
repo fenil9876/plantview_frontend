@@ -1,24 +1,13 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { BarChart3, Check, ChevronDown, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { apiErrorMessage, apiValidationErrors } from "../lib/api";
 import {
   createStageEntriesBulk,
   createStageEntry,
   deleteStageEntry,
   getBatch,
-  setBatchColorTargets,
   setBatchDesigns,
   setBatchMaterials,
   updateBatch,
@@ -37,6 +26,7 @@ import {
   cn,
   ConfirmDialog,
   DataTable,
+  ErrorBanner,
   Field,
   Input,
   Modal,
@@ -49,7 +39,6 @@ import {
 import { StageEntryForm } from "../components/StageEntryForm";
 import { MultiColorEntryForm } from "../components/MultiColorEntryForm";
 import type {
-  BatchColorTarget,
   BatchDesign,
   BatchMaterial,
   BatchRead,
@@ -63,7 +52,6 @@ import type {
   ValidationFieldError,
 } from "../lib/types";
 
-const NO_COLOR = "#94a3b8"; // slate-400, used for missing/unspecified color hex
 
 function fmt(v: unknown): string {
   if (v === true) return "Yes";
@@ -141,8 +129,7 @@ export function BatchDetailPage() {
   });
   const { data: machines } = useQuery({ queryKey: ["machines"], queryFn: listMachines });
 
-  const [statsOpen, setStatsOpen] = useState(false);
-  const [setup, setSetup] = useState<null | "lot" | "designs" | "colors" | "materials">(null);
+  const [setup, setSetup] = useState<null | "lot" | "designs" | "materials">(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["batch", batchId] });
 
@@ -173,19 +160,15 @@ export function BatchDetailPage() {
         }
         actions={
           <>
-            <Button
-              variant="secondary"
-              leftIcon={<BarChart3 className="h-4 w-4" />}
-              disabled={batch.color_targets.length === 0}
-              title={
-                batch.color_targets.length === 0
-                  ? "Add a color split below to enable statistics"
-                  : "Color-wise breakdown by stage"
-              }
-              onClick={() => setStatsOpen(true)}
-            >
-              Show statistics
-            </Button>
+            <Link to={`/batches/${batchId}/analytics`}>
+              <Button
+                variant="secondary"
+                leftIcon={<BarChart3 className="h-4 w-4" />}
+                title="Bottlenecks, per design/colour progress and flow over time"
+              >
+                Analytics
+              </Button>
+            </Link>
             <StatusBadge status={batch.status} />
             {canEnter && batch.status === "in_progress" && (
               <>
@@ -207,7 +190,7 @@ export function BatchDetailPage() {
       />
 
       <Card className="py-3">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <SetupTile
             label="Lot size"
             value={batch.lot_size != null ? String(batch.lot_size) : "Not set"}
@@ -215,24 +198,15 @@ export function BatchDetailPage() {
             onClick={() => setSetup("lot")}
           />
           <SetupTile
-            label="Designs"
+            label="Designs & colors"
             value={
               batch.designs.length
-                ? `${batch.designs.length} design${batch.designs.length === 1 ? "" : "s"}`
+                ? `${batch.designs.length} design${batch.designs.length === 1 ? "" : "s"} · ` +
+                  `${batch.color_targets.length} color${batch.color_targets.length === 1 ? "" : "s"}`
                 : "All"
             }
             muted={batch.designs.length === 0}
             onClick={() => setSetup("designs")}
-          />
-          <SetupTile
-            label="Color split"
-            value={
-              batch.color_targets.length
-                ? `${batch.color_targets.length} color${batch.color_targets.length === 1 ? "" : "s"}`
-                : "Not set"
-            }
-            muted={batch.color_targets.length === 0}
-            onClick={() => setSetup("colors")}
           />
           <SetupTile
             label="Materials consumed"
@@ -265,30 +239,14 @@ export function BatchDetailPage() {
       <Modal
         open={setup === "designs"}
         onClose={() => setSetup(null)}
-        title="Designs"
-        description="Pick the designs this lot runs, to narrow the design list during entry. Leave every box unticked to offer all designs."
+        title="Designs & colors"
+        description="Add each design this lot runs, then the colours it runs in. Operators only see a design's own colours when entering data. Add nothing to leave every design and colour available."
         size="lg"
       >
-        <DesignsBody
-          batchId={batchId}
-          selected={batch.designs}
-          canEnter={canEnter}
-          onClose={() => setSetup(null)}
-          onChanged={refresh}
-        />
-      </Modal>
-
-      <Modal
-        open={setup === "colors"}
-        onClose={() => setSetup(null)}
-        title="Color split"
-        description="Optional planned quantity per color. Set it to unlock color-wise statistics and limit the colors operators can pick."
-        size="lg"
-      >
-        <ColorSplitBody
+        <DesignsColorsBody
           batchId={batchId}
           lotSize={batch.lot_size}
-          targets={batch.color_targets}
+          selected={batch.designs}
           canEnter={canEnter}
           onClose={() => setSetup(null)}
           onChanged={refresh}
@@ -311,13 +269,6 @@ export function BatchDetailPage() {
         />
       </Modal>
 
-      <StatsModal
-        open={statsOpen}
-        onClose={() => setStatsOpen(false)}
-        template={template}
-        batch={batch}
-      />
-
       {template.stages.map((stage) => (
         <StageCard
           key={stage.id}
@@ -326,7 +277,6 @@ export function BatchDetailPage() {
           machines={machines ?? []}
           entries={batch.stage_entries.filter((e) => e.stage_id === stage.id)}
           lotSize={batch.lot_size}
-          colorTargets={batch.color_targets}
           lotDesigns={batch.designs}
           isCurrent={batch.current_stage_id === stage.id}
           canEnter={canEnter}
@@ -672,17 +622,19 @@ function MaterialsBody({
                   {item.quantity} {item.unit}
                 </td>
                 <td className="px-4 py-2">
-                  <Field>
+                  {/* `Input` is always w-full, so the width lives on a wrapper. */}
+                  <div className="w-28">
                     <Input
                       type="number"
+                      inputMode="decimal"
                       step="any"
                       min="0"
-                      className="h-9 w-32"
+                      className="h-10"
                       value={qty[item.id] ?? ""}
                       placeholder={usedByBatch.has(item.id) ? String(usedByBatch.get(item.id)) : "0"}
                       onChange={(e) => setQty((prev) => ({ ...prev, [item.id]: e.target.value }))}
                     />
-                  </Field>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -701,19 +653,37 @@ function MaterialsBody({
   );
 }
 
+/** color_id → planned quantity as typed; "" means "runs in this colour, no target". */
+type ColorDraft = Record<number, string>;
+interface DesignDraft {
+  design_id: number;
+  colors: ColorDraft;
+}
+
+const draftTotal = (colors: ColorDraft) =>
+  round2(
+    Object.values(colors).reduce((s, v) => {
+      const n = Number(v);
+      return s + (Number.isFinite(n) && n > 0 ? n : 0);
+    }, 0),
+  );
+
 /**
- * Designs available to this lot. Unlike the colour split there is no quantity —
- * it purely narrows the design picker during entry. Ticking nothing means
- * "no restriction", so every design stays selectable.
+ * The designs this lot runs and the colours under each. Colours belong to a
+ * design, not the lot, so D1 can run red+blue while D2 runs black only — that
+ * pairing is what the entry form offers operators. Attaching no design at all
+ * means "no restriction": every design and colour stays selectable.
  */
-function DesignsBody({
+function DesignsColorsBody({
   batchId,
+  lotSize,
   selected,
   canEnter,
   onClose,
   onChanged,
 }: {
   batchId: number;
+  lotSize: number | null;
   selected: BatchDesign[];
   canEnter: boolean;
   onClose: () => void;
@@ -721,399 +691,363 @@ function DesignsBody({
 }) {
   const toast = useToast();
   const { data: designs } = useQuery({ queryKey: ["designs"], queryFn: listDesigns });
+  const { data: colors } = useQuery({ queryKey: ["colors"], queryFn: listColors });
 
-  const [picked, setPicked] = useState<number[]>(() => selected.map((d) => d.design_id));
-  const toggle = (id: number) =>
-    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
-  // Client-side filter — the full design list is already loaded, so this is instant.
-  const [query, setQuery] = useState("");
-  const [selectedOnly, setSelectedOnly] = useState(false);
-  const all = designs ?? [];
-  const q = query.trim().toLowerCase();
-  const visible = all.filter(
-    (d) =>
-      (!selectedOnly || picked.includes(d.id)) &&
-      (!q ||
-        d.name.toLowerCase().includes(q) ||
-        (d.description ?? "").toLowerCase().includes(q)),
+  const [drafts, setDrafts] = useState<DesignDraft[]>(() =>
+    selected.map((d) => ({
+      design_id: d.design_id,
+      colors: Object.fromEntries(
+        d.colors.map((c) => [c.color_id, c.quantity != null ? String(c.quantity) : ""]),
+      ),
+    })),
   );
-  // Ticking something and then searching past it shouldn't feel like it was lost.
-  const hiddenPicked = picked.filter((id) => !visible.some((d) => d.id === id)).length;
+  // One design open at a time keeps the modal short enough to use on a phone.
+  const [openId, setOpenId] = useState<number | null>(selected[0]?.design_id ?? null);
+  const [query, setQuery] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const allDesigns = designs ?? [];
+  const allColors = colors ?? [];
+  const designName = (id: number) => allDesigns.find((d) => d.id === id)?.name ?? `#${id}`;
+
+  const q = query.trim().toLowerCase();
+  const addable = allDesigns.filter(
+    (d) =>
+      !drafts.some((x) => x.design_id === d.id) &&
+      (!q || d.name.toLowerCase().includes(q) || (d.description ?? "").toLowerCase().includes(q)),
+  );
+
+  const addDesign = (id: number) => {
+    setDrafts((prev) => [...prev, { design_id: id, colors: {} }]);
+    setOpenId(id); // straight into picking its colours — that's the required next step
+    setQuery("");
+  };
+  const removeDesign = (id: number) => {
+    setDrafts((prev) => prev.filter((d) => d.design_id !== id));
+    setOpenId((cur) => (cur === id ? null : cur));
+  };
+  const toggleColor = (designId: number, colorId: number) =>
+    setDrafts((prev) =>
+      prev.map((d) => {
+        if (d.design_id !== designId) return d;
+        const next = { ...d.colors };
+        if (colorId in next) delete next[colorId];
+        else next[colorId] = "";
+        return { ...d, colors: next };
+      }),
+    );
+  const setColorQty = (designId: number, colorId: number, v: string) =>
+    setDrafts((prev) =>
+      prev.map((d) =>
+        d.design_id === designId ? { ...d, colors: { ...d.colors, [colorId]: v } } : d,
+      ),
+    );
+
+  const plannedTotal = round2(drafts.reduce((s, d) => s + draftTotal(d.colors), 0));
+  const overBy = lotSize != null ? round2(plannedTotal - lotSize) : null;
 
   const saveMut = useMutation({
-    mutationFn: () => setBatchDesigns(batchId, picked),
+    mutationFn: () =>
+      setBatchDesigns(
+        batchId,
+        drafts.map((d) => ({
+          design_id: d.design_id,
+          colors: Object.entries(d.colors).map(([cid, v]) => ({
+            color_id: Number(cid),
+            quantity: v.trim() !== "" && !Number.isNaN(Number(v)) ? Number(v) : null,
+          })),
+        })),
+      ),
     onSuccess: () => {
-      toast.success(picked.length ? "Lot designs saved" : "Design restriction cleared");
+      toast.success(drafts.length ? "Designs & colours saved" : "Restriction cleared");
       onChanged();
       onClose();
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
+
+  const save = () => {
+    // Every design must bring at least one colour — the entry form has nothing
+    // to offer an operator otherwise.
+    const empty = drafts.filter((d) => Object.keys(d.colors).length === 0);
+    if (empty.length) {
+      setLocalError(
+        `Add at least one colour to: ${empty.map((d) => designName(d.design_id)).join(", ")}.`,
+      );
+      setOpenId(empty[0].design_id);
+      return;
+    }
+    setLocalError(null);
+    saveMut.mutate();
+  };
 
   // Read-only view for viewers.
   if (!canEnter) {
     return selected.length === 0 ? (
-      <p className="text-sm text-slate-400">No designs attached — all designs are available.</p>
+      <p className="text-sm text-slate-400">
+        No designs attached — all designs and colours are available.
+      </p>
     ) : (
-      <ul className="space-y-1 text-sm text-slate-700">
+      <ul className="space-y-3 text-sm">
         {selected.map((d) => (
-          <li key={d.design_id}>{d.name}</li>
-        ))}
-      </ul>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {all.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
-          No designs defined. Add designs on the Design page first.
-        </p>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search designs…"
-                aria-label="Search designs"
-                className="pl-9 pr-9"
-                autoFocus
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          <li key={d.design_id}>
+            <div className="font-semibold text-slate-800">{d.name}</div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {d.colors.map((c) => (
+                <span
+                  key={c.color_id}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            {picked.length > 0 && (
-              <Button
-                variant={selectedOnly ? "primary" : "secondary"}
-                onClick={() => setSelectedOnly((v) => !v)}
-              >
-                Selected ({picked.length})
-              </Button>
-            )}
-          </div>
-
-          {visible.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
-              {q ? `No designs match “${query}”.` : "Nothing selected yet."}
-            </p>
-          ) : (
-            <div className="grid max-h-[45vh] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {visible.map((d) => (
-                <label
-                  key={d.id}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors",
-                    picked.includes(d.id)
-                      ? "border-brand bg-brand-50"
-                      : "border-slate-200 hover:bg-slate-50",
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={picked.includes(d.id)}
-                    onChange={() => toggle(d.id)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand/30"
+                  <span
+                    className="inline-block h-3 w-3 rounded-full border border-slate-300"
+                    style={{ background: c.hex ?? "transparent" }}
                   />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-slate-800">{d.name}</span>
-                    {d.description && (
-                      <span className="block truncate text-xs text-slate-400">{d.description}</span>
-                    )}
-                  </span>
-                </label>
+                  {c.name}
+                  {c.quantity != null && <strong className="text-slate-800">{c.quantity}</strong>}
+                </span>
               ))}
             </div>
-          )}
-
-          {(q || selectedOnly) && (
-            <p className="text-xs text-slate-400">
-              Showing {visible.length} of {all.length} designs
-              {hiddenPicked > 0 && ` · ${hiddenPicked} selected hidden by this filter`}
-            </p>
-          )}
-        </>
-      )}
-
-      <p className="text-sm text-slate-500">
-        {picked.length === 0 ? (
-          <>
-            Nothing selected — operators can pick <strong className="text-slate-700">any design</strong>.
-          </>
-        ) : (
-          <>
-            Operators will only see these{" "}
-            <strong className="text-slate-700">{picked.length}</strong> design
-            {picked.length === 1 ? "" : "s"}.
-          </>
-        )}
-      </p>
-
-      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-        {picked.length > 0 && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setPicked([]);
-              setSelectedOnly(false); // otherwise the list would filter down to nothing
-            }}
-          >
-            Clear all
-          </Button>
-        )}
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
-          Save designs
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function ColorSplitBody({
-  batchId,
-  lotSize,
-  targets,
-  canEnter,
-  onClose,
-  onChanged,
-}: {
-  batchId: number;
-  lotSize: number | null;
-  targets: BatchColorTarget[];
-  canEnter: boolean;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
-  const toast = useToast();
-  const { data: colors } = useQuery({ queryKey: ["colors"], queryFn: listColors });
-
-  const [qty, setQty] = useState<Record<number, string>>(() =>
-    Object.fromEntries(targets.map((t) => [t.color_id, String(t.quantity)])),
-  );
-
-  const saveMut = useMutation({
-    mutationFn: () => {
-      const items = Object.entries(qty)
-        .map(([id, v]) => ({ color_id: Number(id), quantity: Number(v) }))
-        .filter((t) => t.quantity > 0 && !Number.isNaN(t.quantity));
-      return setBatchColorTargets(batchId, items);
-    },
-    onSuccess: () => {
-      toast.success("Color split saved");
-      onChanged();
-      onClose();
-    },
-    onError: (e) => toast.error(apiErrorMessage(e)),
-  });
-
-  const splitTotal = round2(
-    Object.values(qty).reduce((s, v) => {
-      const n = Number(v);
-      return s + (Number.isFinite(n) && n > 0 ? n : 0);
-    }, 0),
-  );
-  const overBy = lotSize != null ? round2(splitTotal - lotSize) : null;
-
-  // Read-only view for viewers.
-  if (!canEnter) {
-    return targets.length === 0 ? (
-      <p className="text-sm text-slate-400">No color split set.</p>
-    ) : (
-      <ul className="space-y-1 text-sm text-slate-700">
-        {targets.map((t) => (
-          <li key={t.color_id} className="flex items-center gap-2">
-            <span
-              className="inline-block h-3.5 w-3.5 rounded-full border border-slate-300"
-              style={{ background: t.hex ?? "transparent" }}
-            />
-            {t.name}: <strong>{t.quantity}</strong>
           </li>
         ))}
       </ul>
     );
   }
 
+  if (allDesigns.length === 0) {
+    return (
+      <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
+        No designs defined. Add designs on the Design page first.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-2.5 font-semibold">Color</th>
-              <th className="px-4 py-2.5 font-semibold">Planned quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(colors ?? []).length === 0 && (
-              <tr>
-                <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
-                  No colors defined. Add colors on the Design page first.
-                </td>
-              </tr>
+      {localError && <ErrorBanner message={localError} />}
+
+      {/* Designs already in the lot, each expanding to its colours */}
+      {drafts.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-400">
+          No design added yet — operators can pick any design and colour.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {drafts.map((d) => {
+            const open = openId === d.design_id;
+            const count = Object.keys(d.colors).length;
+            const total = draftTotal(d.colors);
+            return (
+              <div
+                key={d.design_id}
+                className={cn(
+                  "overflow-hidden rounded-xl border transition-colors",
+                  count === 0 ? "border-amber-300 bg-amber-50/40" : "border-slate-200 bg-white",
+                )}
+              >
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(open ? null : d.design_id)}
+                    aria-expanded={open}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-slate-400 transition-transform",
+                        open && "rotate-180",
+                      )}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-slate-800">
+                        {designName(d.design_id)}
+                      </span>
+                      <span
+                        className={cn(
+                          "block text-xs",
+                          count === 0 ? "text-amber-600" : "text-slate-400",
+                        )}
+                      >
+                        {count === 0
+                          ? "Pick its colours"
+                          : `${count} colour${count === 1 ? "" : "s"}${total > 0 ? ` · planned ${total}` : ""}`}
+                      </span>
+                    </span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove ${designName(d.design_id)}`}
+                    onClick={() => removeDesign(d.design_id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+
+                {open && (
+                  <div className="border-t border-slate-100 px-3 py-3">
+                    {allColors.length === 0 ? (
+                      <p className="text-sm text-slate-400">
+                        No colours defined. Add colours on the Design page first.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {allColors.map((c) => {
+                          const on = c.id in d.colors;
+                          return (
+                            <div
+                              key={c.id}
+                              className={cn(
+                                "overflow-hidden rounded-lg border transition-colors",
+                                on ? "border-brand bg-brand-50" : "border-slate-200",
+                              )}
+                            >
+                              <button
+                                type="button"
+                                aria-pressed={on}
+                                onClick={() => toggleColor(d.design_id, c.id)}
+                                className="flex min-h-[48px] w-full items-center gap-2.5 px-3 py-2.5 text-left"
+                              >
+                                <span
+                                  className={cn(
+                                    "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                                    on ? "border-brand bg-brand text-white" : "border-slate-300",
+                                  )}
+                                >
+                                  {on && <Check className="h-3.5 w-3.5" />}
+                                </span>
+                                <span
+                                  className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-slate-300"
+                                  style={{ background: c.hex ?? "transparent" }}
+                                />
+                                <span className="truncate text-sm font-medium text-slate-800">
+                                  {c.name}
+                                </span>
+                              </button>
+                              {/* The quantity gets its own row. Sharing a line with the
+                                  name overflowed on a phone, and `Input` is always
+                                  `w-full`, so a width class on it cannot win. */}
+                              {on && (
+                                <label className="flex items-center gap-3 border-t border-brand/20 px-3 py-2.5">
+                                  <span className="whitespace-nowrap text-xs font-medium text-slate-500">
+                                    Planned qty
+                                  </span>
+                                  {/* w-24 keeps label + field on one line down to 320px. */}
+                                  <span className="ml-auto block w-24 shrink-0 sm:w-28">
+                                    <Input
+                                      type="number"
+                                      inputMode="decimal"
+                                      step="any"
+                                      min="0"
+                                      aria-label={`Planned quantity for ${c.name}`}
+                                      className="h-10 text-base"
+                                      placeholder="—"
+                                      value={d.colors[c.id]}
+                                      onChange={(e) => setColorQty(d.design_id, c.id, e.target.value)}
+                                    />
+                                  </span>
+                                </label>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="mt-2 text-xs text-slate-400">
+                      Quantity is the planned target and can be left blank.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add another design */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Add a design
+        </div>
+        {allDesigns.length > 6 && (
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search designs…"
+              aria-label="Search designs"
+              className="pl-9 pr-9"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             )}
-            {(colors ?? []).map((c) => (
-              <tr key={c.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-2">
-                  <span className="flex items-center gap-2 font-medium text-slate-800">
-                    <span
-                      className="inline-block h-3.5 w-3.5 rounded-full border border-slate-300"
-                      style={{ background: c.hex ?? "transparent" }}
-                    />
-                    {c.name}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  <Field>
-                    <Input
-                      type="number"
-                      step="any"
-                      min="0"
-                      className="h-9 w-32"
-                      value={qty[c.id] ?? ""}
-                      placeholder="0"
-                      onChange={(e) => setQty((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                    />
-                  </Field>
-                </td>
-              </tr>
+          </div>
+        )}
+        {addable.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            {q ? `No designs match “${query}”.` : "Every design is already added."}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {addable.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => addDesign(d.id)}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-brand hover:bg-brand-50 hover:text-brand"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {d.name}
+              </button>
             ))}
-          </tbody>
-        </table>
+          </div>
+        )}
       </div>
+
       <p className="text-sm text-slate-500">
-        Split total: <strong className="text-slate-700">{splitTotal}</strong>
-        {lotSize != null && (
+        {drafts.length === 0 ? (
           <>
-            {" "}
-            of lot size <strong className="text-slate-700">{lotSize}</strong>
-            {overBy != null && overBy > 0 && (
-              <span className="text-red-600"> · exceeds lot size by {overBy}</span>
+            Nothing added — operators can pick{" "}
+            <strong className="text-slate-700">any design and colour</strong>.
+          </>
+        ) : (
+          <>
+            Planned total <strong className="text-slate-700">{plannedTotal}</strong>
+            {lotSize != null && (
+              <>
+                {" "}
+                of lot size <strong className="text-slate-700">{lotSize}</strong>
+                {overBy != null && overBy > 0 && (
+                  <span className="text-red-600"> · exceeds lot size by {overBy}</span>
+                )}
+              </>
             )}
           </>
         )}
       </p>
-      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+
+      {/* Sticky so Save stays reachable once a few designs are expanded. */}
+      <div className="sticky bottom-0 -mx-6 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white px-6 pb-1 pt-3">
+        {drafts.length > 0 && (
+          <Button variant="ghost" className="mr-auto" onClick={() => setDrafts([])}>
+            Clear all
+          </Button>
+        )}
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button loading={saveMut.isPending} onClick={() => saveMut.mutate()}>
-          Save color split
+        <Button loading={saveMut.isPending} onClick={save}>
+          Save
         </Button>
       </div>
     </div>
-  );
-}
-
-function StatsModal({
-  open,
-  onClose,
-  template,
-  batch,
-}: {
-  open: boolean;
-  onClose: () => void;
-  template: TemplateRead;
-  batch: BatchRead;
-}) {
-  const colorDefs = batch.color_targets;
-
-  const rows = template.stages.map((stage) => {
-    const entries = batch.stage_entries.filter((e) => e.stage_id === stage.id);
-    const byColor = perColorAtStage(stage, entries);
-    const cells = colorDefs.map((c) => round2(byColor.get(c.color_id) ?? 0));
-    return { stage, cells, total: round2(cells.reduce((s, v) => s + v, 0)) };
-  });
-
-  const chartData = rows.map((r) => {
-    const row: Record<string, number | string> = { stage: r.stage.name };
-    colorDefs.forEach((c, i) => (row[c.name] = r.cells[i]));
-    return row;
-  });
-
-  const th = "px-3 py-2 font-semibold";
-  const td = "px-3 py-2 align-top";
-
-  return (
-    <Modal open={open} onClose={onClose} title={`Color-wise statistics — ${batch.code}`} size="lg">
-      {colorDefs.length === 0 ? (
-        <p className="text-sm text-slate-400">Add a color split to see statistics.</p>
-      ) : (
-        <div className="space-y-5">
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="stage" fontSize={12} stroke="#94a3b8" />
-                <YAxis fontSize={12} stroke="#94a3b8" allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                {colorDefs.map((c) => (
-                  <Bar key={c.color_id} dataKey={c.name} stackId="a" fill={c.hex ?? NO_COLOR} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className={th}>Stage</th>
-                  {colorDefs.map((c) => (
-                    <th key={c.color_id} className={th}>
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className="inline-block h-3 w-3 rounded-full border border-slate-300"
-                          style={{ background: c.hex ?? NO_COLOR }}
-                        />
-                        {c.name}
-                      </span>
-                    </th>
-                  ))}
-                  <th className={th}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-slate-100 text-slate-500">
-                  <td className={`${td} font-medium`}>Planned (lot)</td>
-                  {colorDefs.map((c) => (
-                    <td key={c.color_id} className={td}>
-                      {c.quantity}
-                    </td>
-                  ))}
-                  <td className={td}>{round2(colorDefs.reduce((s, c) => s + c.quantity, 0))}</td>
-                </tr>
-                {rows.map((r) => (
-                  <tr key={r.stage.id} className="border-b border-slate-100 last:border-0">
-                    <td className={`${td} font-medium text-slate-700`}>{r.stage.name}</td>
-                    {r.cells.map((v, i) => (
-                      <td key={colorDefs[i].color_id} className={td}>
-                        {v}
-                      </td>
-                    ))}
-                    <td className={`${td} font-semibold text-slate-800`}>{r.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </Modal>
   );
 }
 
@@ -1123,7 +1057,6 @@ function StageCard({
   machines,
   entries,
   lotSize,
-  colorTargets,
   lotDesigns,
   isCurrent,
   canEnter,
@@ -1136,7 +1069,6 @@ function StageCard({
   machines: Machine[];
   entries: StageEntry[];
   lotSize: number | null;
-  colorTargets: BatchColorTarget[];
   lotDesigns: BatchDesign[];
   isCurrent: boolean;
   canEnter: boolean;
@@ -1157,8 +1089,6 @@ function StageCard({
   const canEditEntry = (e: StageEntry) => isAdmin || e.submitted_by === currentUserId;
   const machineName = (mid: number) => machines.find((m) => m.id === mid)?.name ?? `#${mid}`;
 
-  const colorTargetIds = colorTargets.map((t) => t.color_id);
-  const lotDesignIds = lotDesigns.map((d) => d.design_id);
   // The fast multi-colour grid fits simple machine stages (machines, no custom
   // per-machine input/output fields). Everything else uses the single-entry form.
   const hasRichMachineFields = stage.field_defs.some(
@@ -1361,17 +1291,16 @@ function StageCard({
         open={gridOpen}
         onClose={closeGrid}
         title={`New entries — ${stage.name}`}
-        description="Enter a quantity for each colour. One save records them all."
+        description="Pick your machines and design, then a quantity per colour. One save records them all."
         size="md"
       >
         <MultiColorEntryForm
           key={formKey}
           stage={stage}
           machines={machines}
-          colorTargets={colorTargets}
+          lotDesigns={lotDesigns}
           doneByColorId={doneByColorId}
           lastDesignId={lastDesignId}
-          allowedDesignIds={lotDesignIds}
           errors={errors}
           submitting={bulkMut.isPending}
           onSubmit={(payloads) => bulkMut.mutate(payloads)}
@@ -1393,8 +1322,7 @@ function StageCard({
             errors={errors}
             canEdit
             submitting={updateMut.isPending}
-            allowedColorIds={colorTargetIds}
-            allowedDesignIds={lotDesignIds}
+            lotDesigns={lotDesigns}
             onSubmit={(payload) => updateMut.mutate({ entryId: editing.id, payload })}
             onCancel={closeForm}
           />
@@ -1406,8 +1334,7 @@ function StageCard({
             errors={errors}
             canEdit
             submitting={createMut.isPending}
-            allowedColorIds={colorTargetIds}
-            allowedDesignIds={lotDesignIds}
+            lotDesigns={lotDesigns}
             allowAddAnother
             onSubmit={(payload, addAnother) => createMut.mutate({ payload, addAnother })}
             onCancel={closeForm}

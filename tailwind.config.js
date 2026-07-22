@@ -43,11 +43,16 @@ export default {
           from: { opacity: "0", transform: "translateX(16px)" },
           to: { opacity: "1", transform: "translateX(0)" },
         },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(12px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.15s ease-out",
         "scale-in": "scale-in 0.15s ease-out",
         "slide-in": "slide-in 0.2s ease-out",
+        "slide-up": "slide-up 0.2s ease-out",
       },
     },
   },

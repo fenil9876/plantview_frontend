@@ -1,7 +1,7 @@
 import { api } from "./api";
 import type {
-  BatchColorTargetSubmit,
   BatchCreate,
+  BatchDesignSubmit,
   BatchMaterialSubmit,
   BatchRead,
   BatchStatus,
@@ -47,16 +47,16 @@ export async function setBatchMaterials(
   return (await api.put<BatchRead>(`/batches/${id}/materials`, { materials })).data;
 }
 
-/** Designs this lot may use. Empty list clears the restriction (all designs selectable). */
-export async function setBatchDesigns(id: number, designIds: number[]): Promise<BatchRead> {
-  return (await api.put<BatchRead>(`/batches/${id}/designs`, { design_ids: designIds })).data;
-}
-
-export async function setBatchColorTargets(
+/**
+ * The designs this lot runs, each with its own colours. Every design must bring
+ * at least one colour. An empty list clears the restriction, leaving all designs
+ * and colours selectable during entry.
+ */
+export async function setBatchDesigns(
   id: number,
-  targets: BatchColorTargetSubmit[],
+  designs: BatchDesignSubmit[],
 ): Promise<BatchRead> {
-  return (await api.put<BatchRead>(`/batches/${id}/color-targets`, { targets })).data;
+  return (await api.put<BatchRead>(`/batches/${id}/designs`, { designs })).data;
 }
 
 export async function createStageEntry(

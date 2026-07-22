@@ -28,6 +28,9 @@ const BatchesPage = lazy(() =>
 const BatchDetailPage = lazy(() =>
   import("./pages/BatchDetailPage").then((m) => ({ default: m.BatchDetailPage })),
 );
+const LotAnalyticsPage = lazy(() =>
+  import("./pages/LotAnalyticsPage").then((m) => ({ default: m.LotAnalyticsPage })),
+);
 const InventoryPage = lazy(() =>
   import("./pages/InventoryPage").then((m) => ({ default: m.InventoryPage })),
 );
@@ -59,6 +62,7 @@ export default function App() {
               <Route path="/templates/:id" element={adminRoute(<TemplateDetailPage />)} />
               <Route path="/batches" element={<BatchesPage />} />
               <Route path="/batches/:id" element={<BatchDetailPage />} />
+              <Route path="/batches/:id/analytics" element={<LotAnalyticsPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/design" element={<DesignPage />} />
               <Route path="/machines" element={adminRoute(<MachinesPage />)} />

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import type {
+  BatchDesign,
   FieldDef,
   Machine,
   StageEntry,
@@ -50,10 +51,12 @@ interface Props {
   errors: ValidationFieldError[];
   canEdit: boolean;
   submitting: boolean;
-  /** Restrict the color picker to the lot's color split. Empty = no restriction (all colors). */
-  allowedColorIds?: number[];
-  /** Restrict the design picker to the lot's designs. Empty = no restriction (all designs). */
-  allowedDesignIds?: number[];
+  /**
+   * The lot's designs with the colours under each. The design picker is limited
+   * to these, and the colour picker to the chosen design's own colours. Empty =
+   * no restriction (every design and colour offered).
+   */
+  lotDesigns?: BatchDesign[];
   /** Show a "Save & add another" button that keeps the form open after saving. */
   allowAddAnother?: boolean;
   onSubmit: (payload: StageEntrySubmit, addAnother?: boolean) => void;
@@ -67,8 +70,7 @@ export function StageEntryForm({
   errors,
   canEdit,
   submitting,
-  allowedColorIds,
-  allowedDesignIds,
+  lotDesigns,
   allowAddAnother,
   onSubmit,
   onCancel,
@@ -83,27 +85,45 @@ export function StageEntryForm({
   const { data: designs } = useQuery({ queryKey: ["designs"], queryFn: listDesigns });
   const { data: colors } = useQuery({ queryKey: ["colors"], queryFn: listColors });
 
-  // When a lot color split is set, only those colors may be picked. Always keep the
-  // entry's current color visible so editing never silently drops it.
-  const visibleColors = (colors ?? []).filter(
-    (cl) =>
-      !allowedColorIds ||
-      allowedColorIds.length === 0 ||
-      allowedColorIds.includes(cl.id) ||
-      cl.id === existing?.color_id,
-  );
+  const [designId, setDesignId] = useState<number | "">(existing?.design_id ?? "");
+  const [colorId, setColorId] = useState<number | "">(existing?.color_id ?? "");
 
-  // Same rule for designs: a lot with no designs attached offers all of them.
+  // A lot with no designs attached is unrestricted. Otherwise only its designs
+  // may be picked — plus whatever this entry already uses, so editing an older
+  // entry never silently drops its design.
+  const restricted = (lotDesigns?.length ?? 0) > 0;
   const visibleDesigns = (designs ?? []).filter(
     (d) =>
-      !allowedDesignIds ||
-      allowedDesignIds.length === 0 ||
-      allowedDesignIds.includes(d.id) ||
+      !restricted ||
+      lotDesigns!.some((ld) => ld.design_id === d.id) ||
       d.id === existing?.design_id,
   );
 
-  const [designId, setDesignId] = useState<number | "">(existing?.design_id ?? "");
-  const [colorId, setColorId] = useState<number | "">(existing?.color_id ?? "");
+  // Colours belong to a design, so the picker follows the design chosen above.
+  const lotDesign = lotDesigns?.find((ld) => ld.design_id === designId);
+  const visibleColors = (colors ?? []).filter(
+    (cl) =>
+      !restricted ||
+      !lotDesign ||
+      lotDesign.colors.length === 0 ||
+      lotDesign.colors.some((c) => c.color_id === cl.id) ||
+      cl.id === existing?.color_id,
+  );
+
+  const chooseDesign = (next: number | "") => {
+    setDesignId(next);
+    // The old colour may not belong to the new design — drop it rather than
+    // submit a pair the lot doesn't run.
+    const nextLot = lotDesigns?.find((ld) => ld.design_id === next);
+    if (
+      colorId !== "" &&
+      nextLot &&
+      nextLot.colors.length > 0 &&
+      !nextLot.colors.some((c) => c.color_id === colorId)
+    ) {
+      setColorId("");
+    }
+  };
 
   const [stageVals, setStageVals] = useState<ValMap>(() => initVals(stageFields, existing?.data));
   const [machineVals, setMachineVals] = useState<Record<number, MachineVals>>(() => {
@@ -206,7 +226,7 @@ export function StageEntryForm({
           <Select
             value={designId}
             disabled={!canEdit}
-            onChange={(e) => setDesignId(e.target.value ? Number(e.target.value) : "")}
+            onChange={(e) => chooseDesign(e.target.value ? Number(e.target.value) : "")}
           >
             <option value="">— none —</option>
             {visibleDesigns.map((d) => (
@@ -216,10 +236,14 @@ export function StageEntryForm({
             ))}
           </Select>
         </Field>
-        <Field label="Color" required={requireDesignColor}>
+        <Field
+          label="Color"
+          required={requireDesignColor}
+          hint={restricted && designId === "" ? "Pick a design first." : undefined}
+        >
           <Select
             value={colorId}
-            disabled={!canEdit}
+            disabled={!canEdit || (restricted && designId === "")}
             onChange={(e) => setColorId(e.target.value ? Number(e.target.value) : "")}
           >
             <option value="">— none —</option>
