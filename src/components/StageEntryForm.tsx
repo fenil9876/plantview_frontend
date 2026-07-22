@@ -257,7 +257,7 @@ export function StageEntryForm({
       </div>
 
       {stageFields.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           {stageFields.map((f) => (
             <DynamicField
               key={f.id}
@@ -277,33 +277,35 @@ export function StageEntryForm({
           <div>
             <div className="mb-1.5 text-sm font-medium text-slate-700">Machines used</div>
             {assigned.filter((m) => isUsed(m.id)).length === 0 ? (
-              <p className="text-sm text-slate-400">None yet — tap a machine below to add it.</p>
+              <p className="text-sm text-slate-500">None yet — tap a machine below to add it.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {assigned
                   .filter((m) => isUsed(m.id))
                   .map((m) => (
+                    // Chip height is a touch target, not decoration: this is
+                    // tapped repeatedly to correct quantities during a run.
                     <span
                       key={m.id}
-                      className="inline-flex items-center gap-2 rounded-full border border-brand bg-brand-50 py-1 pl-3 pr-1 text-sm text-brand"
+                      className="inline-flex h-11 items-center gap-1 rounded-full border border-brand bg-brand-50 pl-3.5 pr-1 text-sm text-brand-800 sm:h-9"
                     >
                       <button
                         type="button"
                         disabled={!canEdit}
                         onClick={() => openPicker(m.id)}
-                        className="font-medium"
+                        className="h-full font-medium"
                         title="Tap to change quantity"
                       >
-                        {m.name}: {machineVals[m.id]?.quantity}
+                        {m.name}: <span className="tabular font-semibold">{machineVals[m.id]?.quantity}</span>
                       </button>
                       {canEdit && (
                         <button
                           type="button"
                           onClick={() => removeMachine(m.id)}
                           aria-label={`Remove ${m.name}`}
-                          className="flex h-5 w-5 items-center justify-center rounded-full text-brand hover:bg-brand hover:text-white"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-brand hover:bg-brand hover:text-white sm:h-6 sm:w-6"
                         >
-                          <X className="h-3.5 w-3.5" />
+                          <X className="h-4 w-4" />
                         </button>
                       )}
                     </span>
@@ -324,14 +326,14 @@ export function StageEntryForm({
                       key={m.id}
                       type="button"
                       onClick={() => openPicker(m.id)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-brand hover:bg-brand-50 hover:text-brand"
+                      className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-medium text-slate-700 transition-colors active:scale-[0.97] hover:border-brand hover:bg-brand-50 hover:text-brand sm:h-9"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Plus className="h-4 w-4" />
                       {m.name}
                     </button>
                   ))}
                 {assigned.every((m) => isUsed(m.id)) && (
-                  <span className="text-sm text-slate-400">All machines added.</span>
+                  <span className="text-sm text-slate-500">All machines added.</span>
                 )}
               </div>
             </div>
@@ -342,13 +344,19 @@ export function StageEntryForm({
       {/* Quantity popup */}
       {pickId !== null && pickMachine && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4"
           onClick={() => setPickId(null)}
         >
+          {/* A sheet, not a centred box: the numeric keypad opens over the
+              bottom half of the screen, and a centred dialog ends up hidden
+              behind it. */}
           <div
-            className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-pop animate-scale-in"
+            className="w-full rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] shadow-pop animate-sheet-up sm:max-w-xs sm:rounded-2xl sm:pb-5 sm:animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="flex justify-center pb-3 sm:hidden">
+              <div className="h-1 w-10 rounded-full bg-slate-300" />
+            </div>
             <h3 className="text-base font-semibold text-slate-900">{pickMachine.name}</h3>
             <p className="mt-0.5 text-sm text-slate-500">Enter quantity</p>
             <Input
@@ -358,9 +366,10 @@ export function StageEntryForm({
               value={pickQty}
               onChange={(e) => setPickQty(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && confirmPicker()}
-              className="mt-3"
+              // Bigger than a normal field — it is the only thing on this sheet.
+              className="tabular mt-3 h-14 text-center text-2xl font-semibold sm:h-12 sm:text-xl"
             />
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="secondary" onClick={() => setPickId(null)}>
                 Cancel
               </Button>
@@ -375,9 +384,9 @@ export function StageEntryForm({
       {stage.has_machines && assigned.length > 0 && (inputFields.length > 0 || outputFields.length > 0) && (
         <div className="space-y-3">
           {assigned.map((m) => (
-            <div key={m.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="text-sm font-semibold text-slate-700">
-                {m.name} <span className="text-xs font-normal text-slate-400">({m.code})</span>
+            <div key={m.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+              <div className="text-sm font-semibold text-slate-800">
+                {m.name} <span className="font-mono text-xs font-normal text-slate-500">({m.code})</span>
               </div>
 
               <div className="mt-2 max-w-xs">
@@ -394,7 +403,7 @@ export function StageEntryForm({
 
               {inputFields.length > 0 && (
                 <div className="mt-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Input</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Input</div>
                   <div className="mt-1 grid grid-cols-1 gap-3 md:grid-cols-3">
                     {inputFields.map((f) => (
                       <DynamicField
@@ -411,7 +420,7 @@ export function StageEntryForm({
               )}
               {outputFields.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Output</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Output</div>
                   <div className="mt-1 grid grid-cols-1 gap-3 md:grid-cols-3">
                     {outputFields.map((f) => (
                       <DynamicField
@@ -432,26 +441,23 @@ export function StageEntryForm({
       )}
 
       {stage.has_machines && assigned.length === 0 && (
-        <p className="text-sm text-slate-400">No machines assigned to this stage.</p>
+        <p className="text-sm text-slate-500">No machines assigned to this stage.</p>
       )}
 
       {canEdit && (
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => submit(false)} disabled={submitting}>
-            {submitting ? "Saving…" : existing ? "Save changes" : "Save"}
+        // Full-width and stacked on a phone, with the primary action first so
+        // it is the closest thing to the thumb after a long scroll.
+        <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap">
+          <Button onClick={() => submit(false)} loading={submitting} size="lg">
+            {existing ? "Save changes" : "Save"}
           </Button>
           {allowAddAnother && !existing && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => submit(true)}
-              disabled={submitting}
-            >
-              Save & add another
+            <Button type="button" variant="subtle" size="lg" onClick={() => submit(true)} disabled={submitting}>
+              Save &amp; add another
             </Button>
           )}
           {onCancel && (
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button type="button" variant="ghost" size="lg" onClick={onCancel}>
               Cancel
             </Button>
           )}

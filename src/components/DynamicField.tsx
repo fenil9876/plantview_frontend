@@ -18,9 +18,12 @@ export function DynamicField({ field, value, onChange, error, disabled }: Props)
     switch (field.data_type) {
       case "bool":
         return (
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          // The whole row is the target — a bare 13px checkbox is unhittable
+          // with a thumb, and this sits among 44px-tall inputs.
+          <label className="flex h-11 cursor-pointer items-center gap-2.5 text-sm text-slate-700 sm:h-10">
             <input
               type="checkbox"
+              className="h-5 w-5 rounded border-slate-300 accent-brand"
               checked={value === true}
               disabled={disabled}
               onChange={(e) => onChange(e.target.checked)}
@@ -75,10 +78,10 @@ export function DynamicField({ field, value, onChange, error, disabled }: Props)
       <label className="block text-sm font-medium text-slate-700">
         {field.label}
         {field.required && <span className="text-red-500"> *</span>}
-        {field.unit && <span className="ml-1 text-xs text-slate-400">({field.unit})</span>}
+        {field.unit && <span className="ml-1 text-xs text-slate-500">({field.unit})</span>}
       </label>
-      <div className="mt-1">{control()}</div>
-      {error && <div className="mt-1 text-xs text-red-600">{error}</div>}
+      <div className="mt-1.5">{control()}</div>
+      {error && <div className="mt-1 text-xs font-medium text-red-600">{error}</div>}
     </div>
   );
 }

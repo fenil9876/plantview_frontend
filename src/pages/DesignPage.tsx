@@ -22,7 +22,7 @@ import {
   Input,
   Modal,
   PageHeader,
-  Spinner,
+  SkeletonList,
   useConfirm,
   useToast,
   type Column,
@@ -177,8 +177,8 @@ export function DesignPage() {
         <div className="space-y-4">
           {canWrite && (
             <Card title="Add color">
-              <form onSubmit={onAddColor} className="flex items-end gap-3">
-                <Field label="Name" className="flex-1">
+              <form onSubmit={onAddColor} className="flex flex-wrap items-end gap-3">
+                <Field label="Name" className="min-w-[8rem] flex-1">
                   <Input value={cName} onChange={(e) => setCName(e.target.value)} placeholder="Red" />
                 </Field>
                 <Field label="Color">
@@ -186,7 +186,7 @@ export function DesignPage() {
                     type="color"
                     value={cHex}
                     onChange={(e) => setCHex(e.target.value)}
-                    className="h-10 w-14 cursor-pointer rounded-lg border border-slate-300"
+                    className="h-11 w-14 cursor-pointer rounded-xl border border-slate-300 sm:h-10"
                   />
                 </Field>
                 <Button type="submit" loading={createColorMut.isPending}>
@@ -196,7 +196,7 @@ export function DesignPage() {
             </Card>
           )}
           {colors.isLoading ? (
-            <Spinner label="Loading colors…" />
+            <SkeletonList rows={4} />
           ) : (
             <DataTable columns={colorColumns} data={colors.data ?? []} rowKey={(c) => c.id} empty="No colors yet." />
           )}
@@ -220,7 +220,7 @@ export function DesignPage() {
             </Card>
           )}
           {designs.isLoading ? (
-            <Spinner label="Loading designs…" />
+            <SkeletonList rows={4} />
           ) : (
             <DataTable columns={designColumns} data={designs.data ?? []} rowKey={(d) => d.id} empty="No designs yet." />
           )}
@@ -282,7 +282,7 @@ function ColorEditModal({ color, onClose, onSaved }: { color: Color; onClose: ()
       }
     >
       <div className="flex items-end gap-3">
-        <Field label="Name" className="flex-1">
+        <Field label="Name" className="min-w-[8rem] flex-1">
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <Field label="Color">
@@ -290,7 +290,7 @@ function ColorEditModal({ color, onClose, onSaved }: { color: Color; onClose: ()
             type="color"
             value={hex}
             onChange={(e) => setHex(e.target.value)}
-            className="h-10 w-14 cursor-pointer rounded-lg border border-slate-300"
+            className="h-11 w-14 cursor-pointer rounded-xl border border-slate-300 sm:h-10"
           />
         </Field>
       </div>

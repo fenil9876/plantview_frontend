@@ -245,7 +245,7 @@ function StageCard({
             <div key={f.id} className="flex items-center justify-between px-3 py-2 text-sm">
               <div>
                 <span className="font-medium text-slate-800">{f.label}</span>
-                <span className="ml-2 text-xs text-slate-400">
+                <span className="ml-2 text-xs text-slate-500">
                   {f.key} · {DATA_TYPE_LABEL[f.data_type]} · {SCOPE_LABEL[f.scope]}
                   {f.required ? " · required" : ""}
                   {f.unit ? ` · ${f.unit}` : ""}
@@ -253,7 +253,7 @@ function StageCard({
               </div>
               <button
                 onClick={() => onDeleteField(f.id)}
-                className="text-slate-400 hover:text-red-600"
+                className="text-slate-500 hover:text-red-600"
                 aria-label="Remove column"
               >
                 <X className="h-4 w-4" />
@@ -262,7 +262,7 @@ function StageCard({
           ))}
         </div>
       ) : (
-        <p className="mt-1 text-sm text-slate-400">No columns yet.</p>
+        <p className="mt-1 text-sm text-slate-500">No columns yet.</p>
       )}
       <div className="mt-3">
         <FieldForm allowMachineScopes={stage.has_machines} onAdd={onAddField} onError={onError} />

@@ -176,7 +176,7 @@ export function TemplateBuilderPage() {
             <div className="mt-3">
               <div className="text-sm font-medium text-slate-700">Machines at this stage</div>
               {activeMachines.length === 0 ? (
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-500">
                   No active machines. Add machines on the Machines page first.
                 </p>
               ) : (
@@ -194,7 +194,7 @@ export function TemplateBuilderPage() {
                             : "border-slate-300 text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        {m.name} <span className="text-xs text-slate-400">({m.code})</span>
+                        {m.name} <span className="text-xs text-slate-500">({m.code})</span>
                       </button>
                     );
                   })}
@@ -211,7 +211,7 @@ export function TemplateBuilderPage() {
                   <div key={fi} className="flex items-center justify-between px-3 py-2 text-sm">
                     <div>
                       <span className="font-medium text-slate-800">{f.label}</span>
-                      <span className="ml-2 text-xs text-slate-400">
+                      <span className="ml-2 text-xs text-slate-500">
                         {f.key} · {DATA_TYPE_LABEL[f.data_type]} · {SCOPE_LABEL[f.scope]}
                         {f.required ? " · required" : ""}
                         {f.unit ? ` · ${f.unit}` : ""}
@@ -219,7 +219,7 @@ export function TemplateBuilderPage() {
                     </div>
                     <button
                       onClick={() => removeField(s, fi)}
-                      className="text-slate-400 hover:text-red-600"
+                      className="text-slate-500 hover:text-red-600"
                       aria-label="Remove column"
                     >
                       <X className="h-4 w-4" />

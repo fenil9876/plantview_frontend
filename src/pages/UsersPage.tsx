@@ -14,7 +14,7 @@ import {
   Input,
   Modal,
   PageHeader,
-  Spinner,
+  SkeletonList,
   useConfirm,
   useToast,
 } from "../components/ui";
@@ -64,10 +64,10 @@ function RolePill({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+        "inline-flex h-9 items-center gap-1 rounded-full border px-3.5 text-xs font-semibold transition-colors active:scale-[0.97] sm:h-7",
         active
           ? ROLE_META[role].active
-          : "border-slate-300 bg-white text-slate-400 hover:border-slate-400 hover:text-slate-600",
+          : "border-slate-300 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-600",
         disabled && "cursor-not-allowed opacity-60",
       )}
     >
@@ -159,21 +159,21 @@ export function UsersPage() {
               type="button"
               onClick={() => setSearch("")}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
         {!isLoading && (
-          <span className="text-sm text-slate-400">
+          <span className="text-sm text-slate-500">
             {filtered.length} {filtered.length === 1 ? "user" : "users"}
           </span>
         )}
       </div>
 
       {isLoading ? (
-        <Spinner label="Loading users…" />
+        <SkeletonList rows={5} />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<UsersIcon className="h-6 w-6" />}
@@ -191,7 +191,7 @@ export function UsersPage() {
                 className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-card sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">
                     {initials(u.username)}
                   </div>
                   <div className="min-w-0">
@@ -241,7 +241,7 @@ export function UsersPage() {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-slate-500">
           Tap a role to grant or remove it — changes save instantly.
         </p>
       </div>
@@ -324,7 +324,7 @@ function AddUserModal({
               type="button"
               onClick={() => setShowPw((s) => !s)}
               aria-label={showPw ? "Hide password" : "Show password"}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-600"
             >
               {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -337,7 +337,7 @@ function AddUserModal({
               <RolePill key={r} role={r} active={roles.includes(r)} onClick={() => toggleRole(r)} />
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-500">
             {roles.length ? roles.map((r) => ROLE_META[r].desc).join(" ") : "Pick at least one role."}
           </p>
         </Field>

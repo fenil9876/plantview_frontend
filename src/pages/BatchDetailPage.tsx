@@ -150,7 +150,7 @@ export function BatchDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={batch.code}
+        title={<span className="font-mono">{batch.code}</span>}
         backTo="/batches"
         backLabel="Batches"
         subtitle={
@@ -304,7 +304,7 @@ function LotSummary({ template, batch }: { template: TemplateRead; batch: BatchR
     <Card title="Lot summary" subtitle={`Final stage: ${finalStage.name}`}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-xs uppercase tracking-wide text-slate-400">Lot size</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Lot size</div>
           <div className="mt-0.5 text-2xl font-bold text-slate-800">{batch.lot_size}</div>
         </div>
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
@@ -339,11 +339,11 @@ function SetupTile({
       className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-left transition hover:border-brand hover:bg-brand-50"
     >
       <div className="min-w-0">
-        <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
+        <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
         <div
           className={cn(
             "truncate text-sm font-semibold",
-            muted ? "text-slate-400" : "text-slate-800",
+            muted ? "text-slate-500" : "text-slate-800",
           )}
         >
           {value}
@@ -388,7 +388,7 @@ function LotSizeBody({
             Target: <strong>{lotSize}</strong>
           </>
         ) : (
-          <span className="text-slate-400">Not set.</span>
+          <span className="text-slate-500">Not set.</span>
         )}
       </p>
     );
@@ -444,7 +444,77 @@ function MachineEntriesTable({
   const td = "px-3 py-2 align-top";
 
   return (
-    <div className="overflow-x-auto">
+    <>
+      {/* ---- Mobile: one card per entry ----
+          This table is as wide as the stage has columns, so on a phone it would
+          be a sideways scroll through the very numbers people opened it to
+          check. Each entry becomes a card instead. */}
+      <div className="space-y-2.5 md:hidden">
+        {entries.map((e) => (
+          <div key={e.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                {e.color_name && (
+                  <span className="flex items-center gap-1.5 font-semibold text-slate-900">
+                    <span
+                      className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-slate-300"
+                      style={{ background: e.color_hex ?? "transparent" }}
+                    />
+                    {e.color_name}
+                  </span>
+                )}
+                {e.design_name && <span className="text-sm text-slate-600">{e.design_name}</span>}
+                {!e.color_name && !e.design_name && (
+                  <span className="font-semibold text-slate-900">Entry</span>
+                )}
+              </div>
+              {canEnter && canEditEntry(e) && (
+                <div className="-mr-2 -mt-2 flex shrink-0">
+                  <Button variant="ghost" size="icon" aria-label="Edit entry" onClick={() => onEdit(e.id)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" aria-label="Delete entry" onClick={() => onDelete(e.id)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {e.machine_entries.length > 0 && (
+              <div className="mt-2.5 space-y-1">
+                {e.machine_entries.map((me) => (
+                  <div key={me.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate text-slate-600">{machineName(me.machine_id)}</span>
+                    <span className="tabular font-semibold text-slate-900">{me.quantity ?? "—"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {stageFields.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-100 pt-2.5 text-xs text-slate-600">
+                {stageFields.map((f) => (
+                  <span key={f.id}>
+                    <span className="text-slate-500">{f.label}:</span> {fmt(e.data[f.key])}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-2 text-xs text-slate-500">
+              {e.submitted_by_name ?? "—"} · {new Date(e.updated_at).toLocaleString()}
+            </div>
+          </div>
+        ))}
+
+        <div className="flex items-center justify-between rounded-xl bg-slate-100 px-3.5 py-2.5 text-sm font-semibold text-slate-800">
+          <span>Total quantity</span>
+          <span className="tabular">{total}</span>
+        </div>
+      </div>
+
+      {/* ---- Desktop: full table ---- */}
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -465,7 +535,7 @@ function MachineEntriesTable({
         <tbody>
           {entries.map((e) => (
             <tr key={e.id} className="border-b border-slate-100 last:border-0">
-              <td className={td}>{e.design_name ?? <span className="text-slate-400">—</span>}</td>
+              <td className={td}>{e.design_name ?? <span className="text-slate-500">—</span>}</td>
               <td className={td}>
                 {e.color_name ? (
                   <span className="flex items-center gap-1.5">
@@ -476,12 +546,12 @@ function MachineEntriesTable({
                     {e.color_name}
                   </span>
                 ) : (
-                  <span className="text-slate-400">—</span>
+                  <span className="text-slate-500">—</span>
                 )}
               </td>
               <td className={td}>
                 {e.machine_entries.length === 0 ? (
-                  <span className="text-slate-400">—</span>
+                  <span className="text-slate-500">—</span>
                 ) : (
                   <div className="space-y-1">
                     {e.machine_entries.map((me) => (
@@ -494,7 +564,7 @@ function MachineEntriesTable({
               </td>
               <td className={td}>
                 {e.machine_entries.length === 0 ? (
-                  <span className="text-slate-400">—</span>
+                  <span className="text-slate-500">—</span>
                 ) : (
                   <div className="space-y-1">
                     {e.machine_entries.map((me) => (
@@ -511,7 +581,7 @@ function MachineEntriesTable({
                 </td>
               ))}
               <td className={td}>{e.submitted_by_name ?? "—"}</td>
-              <td className={`${td} text-slate-400`}>{new Date(e.updated_at).toLocaleString()}</td>
+              <td className={`${td} text-slate-500`}>{new Date(e.updated_at).toLocaleString()}</td>
               {canEnter && (
                 <td className={`${td} text-right`}>
                   {canEditEntry(e) && (
@@ -539,7 +609,8 @@ function MachineEntriesTable({
           </tr>
         </tfoot>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -584,7 +655,7 @@ function MaterialsBody({
   // Read-only view for viewers.
   if (!canEnter) {
     return materials.length === 0 ? (
-      <p className="text-sm text-slate-400">No materials recorded.</p>
+      <p className="text-sm text-slate-500">No materials recorded.</p>
     ) : (
       <ul className="space-y-1 text-sm text-slate-700">
         {materials.map((m) => (
@@ -610,7 +681,7 @@ function MaterialsBody({
           <tbody>
             {(inventory ?? []).length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
                   No inventory items.
                 </td>
               </tr>
@@ -784,7 +855,7 @@ function DesignsColorsBody({
   // Read-only view for viewers.
   if (!canEnter) {
     return selected.length === 0 ? (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-slate-500">
         No designs attached — all designs and colours are available.
       </p>
     ) : (
@@ -815,7 +886,7 @@ function DesignsColorsBody({
 
   if (allDesigns.length === 0) {
     return (
-      <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
+      <p className="rounded-lg border border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
         No designs defined. Add designs on the Design page first.
       </p>
     );
@@ -827,7 +898,7 @@ function DesignsColorsBody({
 
       {/* Designs already in the lot, each expanding to its colours */}
       {drafts.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-400">
+        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
           No design added yet — operators can pick any design and colour.
         </p>
       ) : (
@@ -864,7 +935,7 @@ function DesignsColorsBody({
                       <span
                         className={cn(
                           "block text-xs",
-                          count === 0 ? "text-amber-600" : "text-slate-400",
+                          count === 0 ? "text-amber-600" : "text-slate-500",
                         )}
                       >
                         {count === 0
@@ -886,7 +957,7 @@ function DesignsColorsBody({
                 {open && (
                   <div className="border-t border-slate-100 px-3 py-3">
                     {allColors.length === 0 ? (
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-slate-500">
                         No colours defined. Add colours on the Design page first.
                       </p>
                     ) : (
@@ -952,7 +1023,7 @@ function DesignsColorsBody({
                         })}
                       </div>
                     )}
-                    <p className="mt-2 text-xs text-slate-400">
+                    <p className="mt-2 text-xs text-slate-500">
                       Quantity is the planned target and can be left blank.
                     </p>
                   </div>
@@ -983,7 +1054,7 @@ function DesignsColorsBody({
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -991,7 +1062,7 @@ function DesignsColorsBody({
           </div>
         )}
         {addable.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             {q ? `No designs match “${query}”.` : "Every design is already added."}
           </p>
         ) : (
@@ -1189,7 +1260,7 @@ function StageCard({
   const columns: Column<StageEntry>[] = [
     {
       header: "Design",
-      cell: (e) => (e.design_name ? <span className="text-slate-700">{e.design_name}</span> : <span className="text-slate-400">—</span>),
+      cell: (e) => (e.design_name ? <span className="text-slate-700">{e.design_name}</span> : <span className="text-slate-500">—</span>),
     },
     {
       header: "Color",
@@ -1203,7 +1274,7 @@ function StageCard({
             {e.color_name}
           </span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-slate-500">—</span>
         ),
     },
     ...stageFields.map(
@@ -1212,7 +1283,7 @@ function StageCard({
     { header: "Added by", cell: (e) => e.submitted_by_name ?? "—" },
     {
       header: "Updated",
-      cell: (e) => <span className="text-slate-400">{new Date(e.updated_at).toLocaleString()}</span>,
+      cell: (e) => <span className="text-slate-500">{new Date(e.updated_at).toLocaleString()}</span>,
     },
     {
       header: "",
@@ -1232,33 +1303,52 @@ function StageCard({
   ];
 
   return (
-    <Card className={isCurrent ? "ring-1 ring-brand/40" : ""}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="flex items-center gap-2 font-semibold text-slate-800">
-            {stage.order_index + 1}. {stage.name}
-            <Badge tone={entries.length ? "indigo" : "gray"}>
-              {entries.length} {entries.length === 1 ? "entry" : "entries"}
-            </Badge>
+    // The stage in progress is the one an operator scrolls to find, so it gets
+    // a ring strong enough to spot without reading.
+    <Card className={isCurrent ? "ring-2 ring-brand/40" : ""}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="flex min-w-0 items-center gap-2 font-semibold text-slate-800">
+            <span
+              className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                isCurrent ? "bg-brand text-white" : "bg-slate-100 text-slate-600",
+              )}
+            >
+              {stage.order_index + 1}
+            </span>
+            <span className="min-w-0 truncate">{stage.name}</span>
           </h2>
+          {isCurrent && <Badge tone="teal" dot>Current</Badge>}
+          <Badge tone={entries.length ? "indigo" : "gray"}>
+            {entries.length} {entries.length === 1 ? "entry" : "entries"}
+          </Badge>
           <QtyCounts done={done} lotSize={lotSize} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-2 sm:flex-none">
           {entries.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={() => setListOpen(true)}>
+            <Button
+              variant="secondary"
+              className="flex-1 sm:flex-none"
+              onClick={() => setListOpen(true)}
+            >
               View entries
             </Button>
           )}
           {canEnter && (
-            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={openAdd}>
-              Add
+            <Button
+              className="flex-1 sm:flex-none"
+              leftIcon={<Plus className="h-4 w-4" />}
+              onClick={openAdd}
+            >
+              Add entry
             </Button>
           )}
         </div>
       </div>
 
       {!canEnter && entries.length === 0 && (
-        <p className="mt-2 text-sm text-slate-400">No entries.</p>
+        <p className="mt-2 text-sm text-slate-500">No entries.</p>
       )}
 
       <Modal open={listOpen} onClose={() => setListOpen(false)} title={`Entries — ${stage.name}`} size="lg">

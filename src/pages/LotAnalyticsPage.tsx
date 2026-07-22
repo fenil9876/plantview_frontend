@@ -270,7 +270,7 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint: strin
     <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
       <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-0.5 text-xl font-semibold text-slate-900">{value}</div>
-      <div className="mt-0.5 text-[11px] leading-tight text-slate-400">{hint}</div>
+      <div className="mt-0.5 text-[11px] leading-tight text-slate-500">{hint}</div>
     </div>
   );
 }
@@ -309,7 +309,7 @@ function StageFunnel({ a }: { a: A }) {
                     </span>
                   )}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   {s.lostFromPrev != null && s.lostFromPrev > 0 ? (
                     <>
                       −{nf(s.lostFromPrev)} vs {prevName}
@@ -352,7 +352,7 @@ function SkuProgressCard({ a }: { a: A }) {
       subtitle="Finished vs planned for each design/colour. Ranked worst first — the top row is where to look."
     >
       {rows.length === 0 ? (
-        <p className="text-sm text-slate-400">No designs planned for this lot.</p>
+        <p className="text-sm text-slate-500">No designs planned for this lot.</p>
       ) : (
         <div className="space-y-3.5">
           {rows.map((r) => {
@@ -396,7 +396,7 @@ function SkuProgressCard({ a }: { a: A }) {
                   </span>
                 </div>
                 {r.vsAverage != null && Math.abs(r.vsAverage) >= 10 && (
-                  <p className="mt-0.5 text-[11px] text-slate-400">
+                  <p className="mt-0.5 text-[11px] text-slate-500">
                     {r.vsAverage < 0 ? `${nf(-r.vsAverage)} pts behind` : `${nf(r.vsAverage)} pts ahead of`} the
                     lot average
                     {r.vsAverage < 0 && ` · ${nf(round2(r.planned - r.done))} still to make`}
@@ -422,7 +422,7 @@ function FlowOverTime({ a }: { a: A }) {
   if (a.timeline.length < 2) {
     return (
       <Card title="Flow over time" subtitle="Cumulative units started vs finished.">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-500">
           Needs entries on at least two different days to plot a trend.
         </p>
       </Card>
@@ -589,7 +589,7 @@ function SkuStageMatrix({
               </span>
             ))}
           </span>
-          <span className="text-slate-400">— = nothing recorded</span>
+          <span className="text-slate-500">— = nothing recorded</span>
         </div>
       )}
     </Card>
@@ -640,7 +640,7 @@ function MachineOutput({ a }: { a: A }) {
         ))}
         {rest.length > 0 && (
           <div className="flex items-center gap-2 pt-1 sm:gap-3">
-            <span className="w-14 shrink-0 text-sm text-slate-400 sm:w-24">+{rest.length} more</span>
+            <span className="w-14 shrink-0 text-sm text-slate-500 sm:w-24">+{rest.length} more</span>
             <div className="h-5 min-w-0 flex-1 rounded-sm bg-slate-100">
               <div
                 className="h-full rounded-r"
@@ -656,7 +656,7 @@ function MachineOutput({ a }: { a: A }) {
           </div>
         )}
       </div>
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
         <Clock className="h-3.5 w-3.5" />
         Output only — machines idle on this lot do not appear.
       </p>

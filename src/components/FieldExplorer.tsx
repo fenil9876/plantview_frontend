@@ -117,9 +117,9 @@ export function FieldExplorer() {
 
       <div className="mt-4">
         {!field ? (
-          <p className="text-sm text-slate-400">Pick a template, stage and column.</p>
+          <p className="text-sm text-slate-500">Pick a template, stage and column.</p>
         ) : isFetching ? (
-          <p className="text-sm text-slate-400">Calculating…</p>
+          <p className="text-sm text-slate-500">Calculating…</p>
         ) : groupBy ? (
           chartData.length ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -132,7 +132,7 @@ export function FieldExplorer() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-slate-400">No data for this column yet.</p>
+            <p className="text-sm text-slate-500">No data for this column yet.</p>
           )
         ) : (
           <div className="rounded-lg bg-slate-50 p-6 text-center">
@@ -142,7 +142,7 @@ export function FieldExplorer() {
             <div className="mt-1 text-3xl font-bold text-slate-800">
               {result?.value ?? "—"}
               {field.unit && result?.value != null && (
-                <span className="ml-1 text-base font-normal text-slate-400">{field.unit}</span>
+                <span className="ml-1 text-base font-normal text-slate-500">{field.unit}</span>
               )}
             </div>
           </div>

@@ -219,7 +219,7 @@ export function MultiColorEntryForm({
       {stage.has_machines && (
         <Field label="Machines you ran" required>
           {assigned.length === 0 ? (
-            <p className="text-sm text-slate-400">No machines assigned to this stage.</p>
+            <p className="text-sm text-slate-500">No machines assigned to this stage.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {assigned.map((m) => {
@@ -233,7 +233,7 @@ export function MultiColorEntryForm({
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors",
                       on
-                        ? "border-brand bg-brand-50 text-brand"
+                        ? "border-brand bg-brand-50 text-brand-800"
                         : "border-slate-300 bg-white text-slate-600 hover:border-brand hover:bg-brand-50",
                     )}
                   >
@@ -253,7 +253,7 @@ export function MultiColorEntryForm({
         hint="One design per save — the colours below are the ones it runs in."
       >
         {designOptions.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             No designs available. Add designs to this lot under “Designs &amp; colors”.
           </p>
         ) : designOptions.length > CHIP_LIMIT ? (
@@ -282,7 +282,7 @@ export function MultiColorEntryForm({
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors",
                     on
-                      ? "border-brand bg-brand-50 text-brand"
+                      ? "border-brand bg-brand-50 text-brand-800"
                       : "border-slate-300 bg-white text-slate-600 hover:border-brand hover:bg-brand-50",
                   )}
                 >
@@ -313,11 +313,11 @@ export function MultiColorEntryForm({
           Enter each machine's quantity per colour
         </div>
         {restricted && designId === "" ? (
-          <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-400">
+          <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
             Choose a design above to see its colours.
           </p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             {restricted
               ? "This design has no colours in this lot. Add them under “Designs & colors”."
               : "No colours available. Add colours on the Design page."}
@@ -339,7 +339,7 @@ export function MultiColorEntryForm({
                       {r.name}
                     </span>
                     {r.planned != null && (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-500">
                         planned {round2(r.planned)}
                         {left != null && (
                           <>
@@ -355,7 +355,7 @@ export function MultiColorEntryForm({
 
                   {stage.has_machines &&
                     (selectedMachines.length === 0 ? (
-                      <p className="mt-2.5 text-xs text-slate-400">
+                      <p className="mt-2.5 text-xs text-slate-500">
                         Tap the machine(s) you ran above to enter quantities.
                       </p>
                     ) : (
@@ -385,7 +385,9 @@ export function MultiColorEntryForm({
         )}
       </div>
 
-      <div className="sticky bottom-0 -mx-6 flex flex-col gap-2 border-t border-slate-100 bg-white px-6 pt-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Margins must match the modal's own padding, which is tighter on a
+          phone than on desktop, or the bar overhangs its container. */}
+      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-slate-100 bg-white px-4 pb-1 pt-3 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-0">
         <p className="text-sm text-slate-500">
           {filledRows.length} colour{filledRows.length === 1 ? "" : "s"} · {machineEntryCount} machine
           {machineEntryCount === 1 ? "" : "s"} · total <strong className="text-slate-700">{total}</strong>

@@ -8,9 +8,53 @@ body,
   height: 100%;
 }
 
+html {
+  /* Stop iOS from re-flowing text when the phone is rotated. */
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-canvas text-slate-900 antialiased;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  /* Grey flash on every tap looks broken on a touch-first app. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer base {
+  /* iOS Safari zooms the whole page when a focused control's text is under
+     16px. Most of this app is used on a phone, so controls stay at 16px until
+     there is a mouse-sized viewport, where 14px is the better density. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 14px;
+    }
+  }
+
+  /* Removes the 300ms double-tap-to-zoom delay on interactive elements. */
+  button,
+  a,
+  [role="button"],
+  label {
+    touch-action: manipulation;
+  }
+
+  /* Keyboard users get a visible ring; pointer users do not get a stuck one. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand/50 ring-offset-2 ring-offset-white;
+  }
+
+  /* Numeric columns line up only if the digits are the same width. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* Thin, unobtrusive scrollbars */
@@ -25,4 +69,17 @@ body {
 *::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
   border-radius: 9999px;
+}
+
+/* Respect the OS "reduce motion" setting — vestibular triggers are real, and
+   the sheet/slide animations are the kind that set them off. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

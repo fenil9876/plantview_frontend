@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { apiErrorMessage } from "../lib/api";
@@ -20,9 +20,9 @@ export function LoginPage() {
 
   const from = (location.state as LocationState)?.from?.pathname ?? "/";
 
-  if (user) {
-    navigate(from, { replace: true });
-  }
+  // Redirect declaratively — navigating during render logs a React warning and
+  // can fire twice in StrictMode.
+  if (user) return <Navigate to={from} replace />;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,11 +39,11 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-slate-100 to-brand-50 px-4">
+    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-slate-100 via-canvas to-brand-50 px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-white shadow-soft">
-            <Layers className="h-6 w-6" />
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-white shadow-soft">
+            <Layers className="h-7 w-7" />
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">PlantView</h1>
           <p className="mt-1 text-sm text-slate-500">Sign in to your workspace</p>
@@ -51,7 +51,7 @@ export function LoginPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-7 shadow-soft"
+          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft sm:p-7"
         >
           <Field label="Email">
             <Input
@@ -61,6 +61,11 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
+              // Phone keyboards otherwise capitalise and autocorrect an address.
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </Field>
           <Field label="Password">
@@ -70,12 +75,13 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete="current-password"
             />
           </Field>
 
           {error && <ErrorBanner message={error} />}
 
-          <Button type="submit" fullWidth loading={submitting}>
+          <Button type="submit" size="lg" fullWidth loading={submitting}>
             Sign in
           </Button>
         </form>

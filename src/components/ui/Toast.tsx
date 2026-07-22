@@ -55,8 +55,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       {/* Bottom centre: on a phone this sits within thumb reach and never covers
-          the header or the top of a form. pb clears the iOS home indicator. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+          the header or the top of a form. On mobile the padding also clears the
+          bottom tab bar and the home indicator; on desktop there is no tab bar. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+4.75rem)] lg:pb-6">
         {toasts.map((t) => (
           <div
             key={t.id}
